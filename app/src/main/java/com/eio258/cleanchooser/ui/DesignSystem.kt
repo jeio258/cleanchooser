@@ -135,6 +135,7 @@ internal fun AppEntryRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         if (rank != null) {
+            // localization:ignore stable rank marker, not prose
             Text(
                 "#$rank",
                 style = MaterialTheme.typography.labelMedium,

@@ -86,7 +86,7 @@ if string_value(default_dir, "diagnostic_readme") is None:
 if string_value(zh_dir, "diagnostic_readme") is None:
     errors.append("Chinese diagnostic_readme resource missing")
 
-diag = (ROOT / "app/src/main/java/com/yagay/ListCleaner/ui/DiagnosticCollector.kt").read_text(encoding="utf-8")
+diag = (ROOT / "app/src/main/java/com/eio258/cleanchooser/ui/DiagnosticCollector.kt").read_text(encoding="utf-8")
 for required in (
     'README.zh-CN.txt', 'README.en.txt',
     'localizedString(context, "zh-CN"', 'localizedString(context, "en"',

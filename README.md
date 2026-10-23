@@ -117,10 +117,10 @@ app/src/main/java/com/eio258/cleanchooser/
 要求 JDK 17、Android SDK 37、Gradle 9.4.1、AGP 9.2。
 
 ```bash
-# 交付用：先 clean 再打包，避免旧 APK 的尾部字节残留
+  # 交付用：先 clean 再打包，避免旧 APK 的尾部字节残留
 gradle :app:assembleClean
 
-# 常规调试
+  # 常规调试
 gradle :app:assembleDebug
 gradle :app:testDebugUnitTest
 ```

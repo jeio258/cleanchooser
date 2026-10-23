@@ -143,7 +143,7 @@ jobs:
       - name: Upload compiled Release APK
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ListCleaner-release-build-${{ github.run_number }}-${{ github.run_attempt }}
+          name: CleanChooser-release-build-${{ github.run_number }}-${{ github.run_attempt }}
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
@@ -182,7 +182,7 @@ jobs:
 
           text = (Path(os.environ['RUNNER_TEMP']) / 'release-badging.txt').read_text()
           package = re.search(r"package: name='([^']+)' versionCode='([0-9]+)' versionName='([^']+)'", text)
-          if not package or package.group(1) != 'com.yagay.ListCleaner':
+          if not package or package.group(1) != 'com.eio258.cleanchooser':
               raise SystemExit('Unexpected APK identity')
           version = package.group(3)
           if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version):
@@ -197,7 +197,7 @@ jobs:
           if notes.splitlines()[0].strip() != expected_heading:
               raise SystemExit(f'RELEASE_NOTES.md heading must be: {expected_heading}')
 
-          name = f'ListCleaner-{version}-release.apk'
+          name = f'CleanChooser-{version}-release.apk'
           output = Path('release-output') / name
           source_apk = Path('app/build/outputs/apk/release/app-release.apk')
           shutil.copyfile(source_apk, output)
@@ -217,7 +217,7 @@ jobs:
         if: steps.publication.outputs.publish == 'true'
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: ListCleaner-release-${{ steps.assets.outputs.version }}
+          name: CleanChooser-release-${{ steps.assets.outputs.version }}
           path: release-output/
           if-no-files-found: error
           retention-days: 30
@@ -240,7 +240,7 @@ jobs:
               echo "Release 编译和签名校验成功。"
               echo ""
               echo "版本 $RELEASE_TAG 已存在，本次已刷新 Release notes；未覆盖已发布 APK。"
-              echo "本次重新编译的 APK 可从本次 ListCleaner-release-$RELEASE_VERSION Artifact 下载。"
+              echo "本次重新编译的 APK 可从本次 CleanChooser-release-$RELEASE_VERSION Artifact 下载。"
             } >> "$GITHUB_STEP_SUMMARY"
           else
             gh release create "$RELEASE_TAG" release-output/*.apk release-output/SHA256SUMS.txt release-output/signature.txt \
