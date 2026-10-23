@@ -1,4 +1,4 @@
-package com.yagay.ListCleaner.data;
+package com.eio258.cleanchooser.data;
 
 /** Exercises denied, non-root and timed-out responses without invoking su. */
 public final class RootAccessCheck {

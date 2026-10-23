@@ -20,12 +20,7 @@
     <string name="common_done">Done</string>
     <string name="common_ok">OK</string>
     <string name="common_refresh">Refresh</string>
-    <string name="common_search">Search</string>
     <string name="common_more">More</string>
-    <string name="common_enable">Enable</string>
-    <string name="common_disable">Disable</string>
-    <string name="common_expand">Expand</string>
-    <string name="common_collapse">Collapse</string>
     <string name="common_selected">Selected</string>
     <string name="common_not_selected">Not selected</string>
 
@@ -35,7 +30,6 @@
     <string name="filter_locked">Locked</string>
     <string name="filter_user_apps">User apps</string>
     <string name="filter_system_apps">System apps</string>
-    <string name="bulk_lock_none">Not protected from bulk actions</string>
     <string name="bulk_lock_partial">Partially protected from bulk actions</string>
     <string name="bulk_lock_full">Protected from bulk actions</string>
 
@@ -122,4 +116,6 @@
     <string name="open_desc_mailto">mailto:</string>
     <string name="open_desc_tel">tel:</string>
     <string name="open_desc_sms">sms: / smsto:</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_workbench">Workbench</string>
 </resources>

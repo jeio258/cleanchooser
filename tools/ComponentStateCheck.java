@@ -1,5 +1,5 @@
-import com.yagay.ListCleaner.domain.ComponentStatePolicy;
-import com.yagay.ListCleaner.data.ComponentRootCommand;
+import com.eio258.cleanchooser.domain.ComponentStatePolicy;
+import com.eio258.cleanchooser.data.ComponentRootCommand;
 
 public class ComponentStateCheck {
     private static int checks;

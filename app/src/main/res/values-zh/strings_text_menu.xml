@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="text_menu_title">文本菜单</string>
+    <string name="text_menu_observed">已生效 · 系统菜单已观测</string>
+    <string name="text_menu_not_observed">未观测到系统菜单，仅显示规则可管的扩展项</string>
+    <string name="text_menu_saved_pending">规则已保存，尚未在系统菜单中确认</string>
+    <string name="text_menu_system_section">系统动作</string>
+    <string name="text_menu_system_hint">由系统生成，位置固定</string>
+    <string name="text_menu_system_subtitle">系统动作 · 不可排序</string>
+    <string name="text_menu_system_badge">系统</string>
+    <string name="text_menu_ext_section">扩展项</string>
+    <string name="text_menu_drag_hint">长按拖动排序；已隐藏项需先恢复</string>
+    <string name="text_menu_hidden">已隐藏</string>
+    <string name="text_menu_dragging">拖动中</string>
+    <string name="text_menu_hidden_count">已隐藏 %1$d 项</string>
+    <string name="text_menu_empty">没有文本处理扩展项</string>
+    <string name="text_menu_reset_order">恢复默认排序</string>
+    <string name="text_menu_clear_all">恢复全部显示</string>
+</resources>

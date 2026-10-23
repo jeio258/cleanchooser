@@ -1,4 +1,4 @@
-import com.yagay.ListCleaner.domain.FilterPolicy;
+import com.eio258.cleanchooser.domain.FilterPolicy;
 
 public final class FilterPolicyCheck {
     public static void main(String[] args) {

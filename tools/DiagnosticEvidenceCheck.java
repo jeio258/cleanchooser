@@ -1,9 +1,9 @@
-import com.yagay.ListCleaner.ui.DiagnosticEvidence;
+import com.eio258.cleanchooser.ui.DiagnosticEvidence;
 
 public final class DiagnosticEvidenceCheck {
     public static void main(String[] args) throws Exception {
         DiagnosticEvidence evidence = new DiagnosticEvidence();
-        String prefix = "[time] [com.yagay.ListCleaner,ListCleaner.Diagnostic,x] pid=42 process=system ";
+        String prefix = "[time] [com.eio258.cleanchooser,ListCleaner.Diagnostic,x] pid=42 process=system ";
         evidence.accept("verbose", prefix + "QUERY layer=SYSTEM kind=OPEN");
         evidence.accept("modules", prefix + "QUERY layer=SYSTEM kind=OPEN");
         evidence.accept("modules", prefix + "MANAGER_QUERY_BYPASS uid=10715");

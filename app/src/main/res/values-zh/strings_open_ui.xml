@@ -10,7 +10,6 @@
     <string name="custom_open_mime_example">例如 application/vnd.amazon.ebook 或 application/*</string>
     <string name="custom_open_extension_label">文件后缀（每行或逗号分隔）</string>
     <string name="custom_open_extension_example">例如 azw3, mobi, m3u8；可写或不写开头的点</string>
-    <string name="custom_open_invalid_configuration">配置无效</string>
     <string name="custom_open_invalid_title">自定义类型名称无效</string>
     <string name="custom_open_invalid_mime">自定义 MIME 无效</string>
     <string name="custom_open_invalid_extension">自定义文件后缀无效</string>

@@ -27,10 +27,6 @@
     <string name="scope_runtime_warning">模块加载不等于过滤成功。请实际打开分享或文件选择器核对规则；文本处理不保证覆盖应用内菜单。</string>
     <string name="scope_recheck">重新检测</string>
     <string name="scope_advanced">高级配置：在 LSPosed → 本模块 → 作用域中手动管理，不建议勾选所有应用。</string>
-    <string name="scope_requesting">正在申请…</string>
-    <string name="scope_no_recommended">无自动推荐目标</string>
-    <string name="scope_recommended_granted">推荐范围已授权</string>
-    <string name="scope_request_missing">申请缺少的作用域（%1$d）</string>
     <string name="scope_detection_failed">%1$s 检测失败</string>
     <string name="scope_scenario_system_share_sheet">系统分享面板</string>
     <string name="scope_scenario_share">分享</string>

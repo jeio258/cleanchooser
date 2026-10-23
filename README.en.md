@@ -1,10 +1,10 @@
-# List Cleaner
+# CleanChooser
 
 [简体中文](README.md) | **English**
 
 Trim Android share, open-with, browser, and text-processing menus so frequently used apps appear first. With Root access, List Cleaner can also manage app-provided Quick Settings tiles, shortcut creation entries, and home-screen widgets.
 
-[Download](https://github.com/yagay/ListCleaner/releases/latest) · [Issues](https://github.com/yagay/ListCleaner/issues) · [Telegram](https://t.me/LISTCLEANER)
+[Download](https://github.com/eio258/cleanchooser/releases/latest) · [Issues](https://github.com/eio258/cleanchooser/issues) · [Telegram](https://t.me/LISTCLEANER)
 
 ## Telegram Channel
 
@@ -18,7 +18,7 @@ Follow **@LISTCLEANER** for release updates, usage tips, and related news.
 - **Rule filtering and priority ordering** require a framework supporting **modern libxposed API 102**. Enable the module, configure its scope, and restart as instructed by the framework.
 - **Component management** additionally requires Root permission granted to List Cleaner through KernelSU, Magisk, or another Root manager. Enabling the LSPosed module does not grant Root.
 
-Package name: `com.yagay.ListCleaner`. Chinese environments display “列表清理”; other supported environments display “List Cleaner”.
+Package name: `com.eio258.cleanchooser`. Chinese environments display “列表清理”; other supported environments display “List Cleaner”.
 
 ## Features
 
@@ -85,7 +85,7 @@ Disabling a component can affect places where it is already used, including exis
 
 ## Getting Started
 
-1. Download and install the release APK from [Releases](https://github.com/yagay/ListCleaner/releases/latest).
+1. Download and install the release APK from [Releases](https://github.com/eio258/cleanchooser/releases/latest).
 2. Enable List Cleaner in a module manager supporting API 102, configure the recommended system/chooser scope, and restart as instructed by the framework.
 3. Open List Cleaner, confirm module and configuration synchronization on the Status page, then configure a category and display mode on the Rules page.
 4. To change app ordering, select and drag frequently used apps on the Ordering page.

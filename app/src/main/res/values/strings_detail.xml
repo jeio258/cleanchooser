@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="detail_app_unknown">App information is not available yet</string>
+    <string name="detail_stat_candidates">Candidates</string>
+    <string name="detail_stat_selected">Selected</string>
+    <string name="detail_stat_disabled">Disabled</string>
+    <string name="detail_stat_locked">Locked</string>
+    <string name="detail_disabled">Disabled</string>
+    <string name="detail_enabled">Enabled</string>
+    <string name="detail_lock_app">Lock app</string>
+    <string name="detail_unlock_app">Unlock app</string>
+    <string name="detail_lock_item">Lock this entry</string>
+    <string name="detail_unlock_item">Unlock this entry</string>
+    <string name="detail_rank">Rank #%1$d</string>
+    <string name="detail_not_ranked">No saved rank in this category</string>
+    <string name="detail_empty_list">No entries match this view</string>
+    <string name="detail_empty_components">No components found for this app. A root scan may be required.</string>
+</resources>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="detail_app_unknown">暂时无法获取应用信息</string>
+    <string name="detail_stat_candidates">候选</string>
+    <string name="detail_stat_selected">已选</string>
+    <string name="detail_stat_disabled">已禁用</string>
+    <string name="detail_stat_locked">已锁定</string>
+    <string name="detail_disabled">已禁用</string>
+    <string name="detail_enabled">已启用</string>
+    <string name="detail_lock_app">锁定应用</string>
+    <string name="detail_unlock_app">解锁应用</string>
+    <string name="detail_lock_item">锁定此项</string>
+    <string name="detail_unlock_item">解锁此项</string>
+    <string name="detail_rank">排名 #%1$d</string>
+    <string name="detail_not_ranked">该分类下没有保存的排名</string>
+    <string name="detail_empty_list">没有符合当前筛选的条目</string>
+    <string name="detail_empty_components">未找到该应用的组件，可能需要重新执行 Root 扫描</string>
+</resources>

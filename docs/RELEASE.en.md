@@ -43,7 +43,7 @@ The fixed Release certificate normally differs from an older Debug certificate, 
 
 ## Synchronizing to the official LSPosed repository
 
-Source code and builds remain in `yagay/ListCleaner`. Module documentation and official APK releases are mirrored to `Xposed-Modules-Repo/com.yagay.ListCleaner`.
+Source code and builds remain in `yagay/ListCleaner`. Module documentation and official APK releases are mirrored to `Xposed-Modules-Repo/com.eio258.cleanchooser`.
 
 In the **source repository**, add `LSPOSED_REPO_TOKEN` under Settings → Secrets and variables → Actions. The token owner must have write access to the official module repository. External collaborators can use a classic PAT with `public_repo` when allowed by organization policy. Update the same Secret when the token expires. Never place the token in source code, logs, or chat. This credential is only for official repository synchronization and does not replace APK signing configuration.
 

@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="home_health_hits">今日命中 %1$d 次 · 配置已同步</string>
+
+    <string name="home_section_cleanup">清理</string>
+    <string name="home_section_entries">入口</string>
+
+    <string name="home_rules_title">菜单候选</string>
+    <string name="home_rules_summary">%1$d 个应用 · 已隐藏 %2$d</string>
+    <string name="home_priority_title">显示顺序</string>
+    <string name="home_priority_summary">已优先 %1$d 个</string>
+    <string name="home_components_title">磁贴 / 快捷方式 / 小部件</string>
+    <string name="home_components_summary">已禁用 %1$d 个</string>
+    <string name="home_components_unscanned">—</string>
+
+
+    <string name="home_view_all_count">全部 %1$d 个</string>
+    <string name="home_row_selection">%1$d/%2$d · %3$s</string>
+    <string name="home_adjust">调整</string>
+    <string name="home_manage">管理</string>
+    <string name="home_no_ranked">还没有优先应用，勾选后即可固定顺序。</string>
+    <string name="home_rank_position">第 %1$d 位</string>
+    <string name="home_not_scanned">尚未扫描组件，需要 Root 授权。</string>
+    <string name="home_no_disabled">没有已禁用的组件。</string>
+    <string name="home_component_row">%1$s · %2$s</string>
+    <string name="home_diagnostic_short">诊断包</string>
+    <string name="home_loading">正在加载…</string>
+</resources>

@@ -1,4 +1,4 @@
-import com.yagay.ListCleaner.domain.RuntimeProtocol;
+import com.eio258.cleanchooser.domain.RuntimeProtocol;
 
 public final class RuntimeProtocolCheck {
     private static int checks;

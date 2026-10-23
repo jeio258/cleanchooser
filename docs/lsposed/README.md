@@ -1,11 +1,11 @@
 # 列表清理 · List Cleaner
 
-**简体中文** | [English](https://github.com/Xposed-Modules-Repo/com.yagay.ListCleaner/blob/main/README.en.md)
+**简体中文** | [English](https://github.com/Xposed-Modules-Repo/com.eio258.cleanchooser/blob/main/README.en.md)
 
 <!-- section:intro -->
 精简 Android 分享、打开方式、浏览器和文本处理菜单，让常用应用优先显示；通过 Root 管理应用提供的磁贴、快捷方式创建入口和桌面小部件。
 
-[下载模块](https://github.com/Xposed-Modules-Repo/com.yagay.ListCleaner/releases/latest) · [源码与完整说明](https://github.com/yagay/ListCleaner) · [问题反馈](https://github.com/yagay/ListCleaner/issues) · [Telegram 频道](https://t.me/LISTCLEANER)
+[下载模块](https://github.com/Xposed-Modules-Repo/com.eio258.cleanchooser/releases/latest) · [源码与完整说明](https://github.com/eio258/cleanchooser) · [问题反馈](https://github.com/eio258/cleanchooser/issues) · [Telegram 频道](https://t.me/LISTCLEANER)
 
 <!-- section:telegram -->
 ## Telegram 频道
@@ -16,7 +16,7 @@
 
 <p align="center">
   <a href="https://t.me/LISTCLEANER">
-    <img src="https://raw.githubusercontent.com/yagay/ListCleaner/main/docs/telegram-channel.jpg" alt="List Cleaner Telegram 频道二维码" width="360">
+    <img src="https://raw.githubusercontent.com/eio258/cleanchooser/main/docs/telegram-channel.jpg" alt="List Cleaner Telegram 频道二维码" width="360">
   </a>
 </p>
 

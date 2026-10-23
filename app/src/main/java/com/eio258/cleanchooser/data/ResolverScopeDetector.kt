@@ -1,0 +1,108 @@
+package com.eio258.cleanchooser.data
+
+import android.content.Context
+import android.content.Intent
+import android.content.pm.ApplicationInfo
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.util.Log
+import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.domain.IntentKind
+
+data class ResolverHost(
+    val packageName: String,
+    val className: String,
+    val processName: String,
+    val scenarios: Set<String>
+) {
+    val requiresManualScope: Boolean get() = when (packageName) {
+        "system" -> false
+        "com.android.intentresolver" -> false
+        "com.android.systemui" -> false
+        "android" -> processName !in ResolverScopeDetector.FRAMEWORK_UI_PROCESSES
+        else -> true
+    }
+}
+
+data class ScopeDetection(
+    val hosts: List<ResolverHost> = emptyList(),
+    val installedCandidates: Set<String> = emptySet(),
+    val warnings: List<String> = emptyList()
+) {
+    val recommended: Set<String> get() = hosts.filterNot { it.requiresManualScope }.map { it.packageName }.toSet()
+}
+
+/** Resolve probes without launching activities. Ordinary default handlers are not Resolver hosts. */
+class ResolverScopeDetector(private val context: Context) {
+    @Suppress("DEPRECATION")
+    fun detect(): ScopeDetection {
+        val pm = context.packageManager
+        val warnings = mutableListOf<String>()
+        val installed = KNOWN_PACKAGES.filter { packageName ->
+            try {
+                pm.getApplicationInfo(packageName, 0)
+                true
+            } catch (_: PackageManager.NameNotFoundException) {
+                false
+            } catch (failure: Exception) {
+                Log.e(TAG, "Installed-host detection failed for $packageName", failure)
+                warnings += context.getString(R.string.scope_detection_failed, packageName)
+                false
+            }
+        }.toSet()
+        val probes = listOf(
+            context.getString(R.string.scope_scenario_system_share_sheet) to
+                Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain"), null),
+            context.getString(R.string.scope_scenario_share) to Intent(Intent.ACTION_SEND).setType("image/*"),
+            context.getString(R.string.scope_scenario_share_multiple) to Intent(Intent.ACTION_SEND_MULTIPLE).setType("image/*"),
+            context.getString(R.string.scope_scenario_open_file) to Intent(Intent.ACTION_VIEW).setDataAndType(
+                Uri.parse("content://com.eio258.cleanchooser.placeholder/item"),
+                "application/pdf"
+            ),
+            context.getString(R.string.scope_scenario_web_link) to Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://example.com")
+            ).addCategory(Intent.CATEGORY_BROWSABLE),
+            context.getString(R.string.scope_scenario_process_text) to Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")
+        )
+        val resolverHosts = probes.mapNotNull { (scenario, intent) ->
+            try {
+                val flags = if (intent.action == Intent.ACTION_PROCESS_TEXT) {
+                    IntentCatalog.queryFlags(IntentKind.PROCESS_TEXT, discovery = false)
+                } else PackageManager.MATCH_DEFAULT_ONLY
+                val info = pm.resolveActivity(intent, flags)?.activityInfo ?: return@mapNotNull null
+                val system = info.applicationInfo.flags and
+                    (ApplicationInfo.FLAG_SYSTEM or ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
+                val activityName = info.targetActivity ?: info.name
+                val resolver = info.packageName == "com.android.intentresolver" ||
+                    activityName.endsWith("ResolverActivity") || activityName.endsWith("ChooserActivity")
+                if (!system || !resolver) return@mapNotNull null
+                ResolverHost(
+                    info.packageName,
+                    info.name,
+                    info.processName ?: info.applicationInfo.processName ?: info.packageName,
+                    setOf(scenario)
+                )
+            } catch (failure: Exception) {
+                Log.e(TAG, "Resolver probe failed for $scenario", failure)
+                warnings += context.getString(R.string.scope_detection_failed, scenario)
+                null
+            }
+        }.groupBy { it.packageName to it.className }.values.map { entries ->
+            entries.first().copy(scenarios = entries.flatMap { it.scenarios }.toSet())
+        }
+        val systemHost = ResolverHost(
+            "system",
+            "PackageManagerService",
+            "system",
+            setOf(context.getString(R.string.scope_scenario_global_intent))
+        )
+        return ScopeDetection(listOf(systemHost) + resolverHosts, installed + "system", warnings)
+    }
+
+    companion object {
+        val KNOWN_PACKAGES = setOf("android", "com.android.intentresolver", "com.android.systemui")
+        val FRAMEWORK_UI_PROCESSES = setOf("android:ui", "system:ui")
+        private const val TAG = "ListCleaner.Scope"
+    }
+}

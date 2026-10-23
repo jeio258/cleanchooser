@@ -43,7 +43,7 @@ storeType=PKCS12
 
 ## 同步到 LSPosed 官方仓库
 
-源码和构建继续保留在 `yagay/ListCleaner`。模块说明和正式 APK Release 会同步到 `Xposed-Modules-Repo/com.yagay.ListCleaner`。
+源码和构建继续保留在 `yagay/ListCleaner`。模块说明和正式 APK Release 会同步到 `Xposed-Modules-Repo/com.eio258.cleanchooser`。
 
 在**源码仓库** Settings → Secrets and variables → Actions 中添加 `LSPOSED_REPO_TOKEN`。令牌所属账号必须拥有官方模块仓库写权限。外部协作者可在组织策略允许时使用带 `public_repo` 权限的 classic PAT。令牌到期后更新同名 Secret。不要把令牌写入源码、日志或聊天。该凭据仅用于官方仓库同步，不替代 APK 签名配置。
 

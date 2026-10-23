@@ -1,11 +1,11 @@
 # List Cleaner
 
-[简体中文](https://github.com/Xposed-Modules-Repo/com.yagay.ListCleaner/blob/main/README.md) | **English**
+[简体中文](https://github.com/Xposed-Modules-Repo/com.eio258.cleanchooser/blob/main/README.md) | **English**
 
 <!-- section:intro -->
 Trim Android share, open-with, browser, and text-processing menus so frequently used apps appear first. With Root access, List Cleaner can also manage app-provided Quick Settings tiles, shortcut creation entries, and home-screen widgets.
 
-[Download module](https://github.com/Xposed-Modules-Repo/com.yagay.ListCleaner/releases/latest) · [Source and full documentation](https://github.com/yagay/ListCleaner) · [Report an issue](https://github.com/yagay/ListCleaner/issues) · [Telegram channel](https://t.me/LISTCLEANER)
+[Download module](https://github.com/Xposed-Modules-Repo/com.eio258.cleanchooser/releases/latest) · [Source and full documentation](https://github.com/eio258/cleanchooser) · [Report an issue](https://github.com/eio258/cleanchooser/issues) · [Telegram channel](https://t.me/LISTCLEANER)
 
 <!-- section:telegram -->
 ## Telegram Channel
@@ -16,7 +16,7 @@ Follow **@LISTCLEANER** for release updates, usage tips, and related news.
 
 <p align="center">
   <a href="https://t.me/LISTCLEANER">
-    <img src="https://raw.githubusercontent.com/yagay/ListCleaner/main/docs/telegram-channel.jpg" alt="List Cleaner Telegram channel QR code" width="360">
+    <img src="https://raw.githubusercontent.com/eio258/cleanchooser/main/docs/telegram-channel.jpg" alt="List Cleaner Telegram channel QR code" width="360">
   </a>
 </p>
 

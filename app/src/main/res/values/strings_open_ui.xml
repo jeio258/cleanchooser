@@ -10,7 +10,6 @@
     <string name="custom_open_mime_example">For example, application/vnd.amazon.ebook or application/*</string>
     <string name="custom_open_extension_label">File extensions (one per line or comma-separated)</string>
     <string name="custom_open_extension_example">For example, azw3, mobi, m3u8; the leading dot is optional</string>
-    <string name="custom_open_invalid_configuration">Invalid configuration</string>
     <string name="custom_open_invalid_title">Invalid custom type name</string>
     <string name="custom_open_invalid_mime">Invalid custom MIME type</string>
     <string name="custom_open_invalid_extension">Invalid custom file extension</string>

@@ -18,12 +18,7 @@
     <string name="common_done">完成</string>
     <string name="common_ok">确定</string>
     <string name="common_refresh">刷新</string>
-    <string name="common_search">搜索</string>
     <string name="common_more">更多</string>
-    <string name="common_enable">启用</string>
-    <string name="common_disable">禁用</string>
-    <string name="common_expand">展开</string>
-    <string name="common_collapse">折叠</string>
     <string name="common_selected">已选择</string>
     <string name="common_not_selected">未选择</string>
 
@@ -32,7 +27,6 @@
     <string name="filter_locked">已锁定</string>
     <string name="filter_user_apps">用户应用</string>
     <string name="filter_system_apps">系统应用</string>
-    <string name="bulk_lock_none">未锁定（会受批量操作影响）</string>
     <string name="bulk_lock_partial">部分锁定（部分项目不受批量操作影响）</string>
     <string name="bulk_lock_full">已锁定（不受批量操作影响）</string>
 
@@ -115,4 +109,6 @@
     <string name="open_desc_mailto">mailto:</string>
     <string name="open_desc_tel">tel:</string>
     <string name="open_desc_sms">sms: / smsto:</string>
+    <string name="nav_home">首页</string>
+    <string name="nav_workbench">工作台</string>
 </resources>

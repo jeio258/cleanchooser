@@ -1,127 +1,154 @@
-# 列表清理 · List Cleaner
+# CleanChooser · 选择器净化
 
-**简体中文** | [English](README.en.md)
+精简 Android 的**分享 / 打开方式 / 文本处理**候选菜单，让常用应用排在前面；同时通过 Root 管理磁贴、快捷方式、小部件的入口。
 
-精简 Android 的分享、打开方式和文本处理菜单，让常用应用排在前面；也可以通过 Root 管理应用提供的磁贴、快捷方式创建入口和桌面小部件。
+包名 `com.eio258.cleanchooser`，基于 [yagay/ListCleaner](https://github.com/yagay/ListCleaner)（commit `0d8657c`）重构而来。来源、改动与许可证状态见 [NOTICE.md](NOTICE.md)。
 
-[下载正式版](https://github.com/yagay/ListCleaner/releases/latest) · [反馈问题](https://github.com/yagay/ListCleaner/issues) · [Telegram 频道](https://t.me/LISTCLEANER)
+---
 
-## Telegram 频道
+## 1. 它做什么
 
-关注 **@LISTCLEANER** 获取版本更新、使用提示和相关消息。
+| 能力 | 说明 | 依赖 |
+|---|---|---|
+| 候选过滤 | 在系统返回分享/打开方式/文本处理候选时按规则剔除非目标项 | LSPosed（libxposed API 102） |
+| 优先排序 | 按保存的应用顺序重排候选，支持按类别、开型、浏览器域名细分 | LSPosed |
+| 文本菜单 | 隐藏或排序长按文字后的「处理文本」扩展项，并展示系统实际菜单 | LSPosed |
+| 组件管理 | 真实禁用/启用磁贴、快捷方式、小部件组件 | Root（su） |
+| 备份与诊断 | 导入导出 JSON 规则、导出诊断包 | 无 |
 
-[加入 Telegram 频道 @LISTCLEANER](https://t.me/LISTCLEANER)
+两类能力互相独立：没有 Root 也能用规则与排序；只读组件列表不需要 Root。
 
-<p align="center">
-  <a href="https://t.me/LISTCLEANER">
-    <img src="docs/telegram-channel.jpg" alt="List Cleaner Telegram 频道二维码" width="360">
-  </a>
-</p>
+---
 
-## 使用要求
+## 2. 架构
 
-- Android 12 或更高版本。
-- **规则过滤与优先排序**：需要支持 **modern libxposed API 102** 的框架，启用模块并配置作用域。传统 Xposed API 或仅支持较旧 API 的框架不适用。
-- **组件管理**：需要在 KernelSU、Magisk 等管理器中为“列表清理”授予 Root 权限。仅启用 LSPosed 模块不等于授予 Root；查看组件列表不需要 Root。
+### 2.1 进程模型
 
-包名为 `com.yagay.ListCleaner`。中文环境显示“列表清理”，其他语言显示“List Cleaner”。
-
-## 功能介绍
-
-### 规则：决定菜单里显示哪些应用
-
-分别管理分享、多文件分享、打开方式、浏览器和文本处理五类候选列表。浏览器分类下可直接添加 github.com 等域名，域名规则继承“浏览器 · 全部”，并可额外单独清理该域名的 App Link 候选。支持搜索应用、展开查看组件，以及按全部、已选、未选和已锁定筛选。
-
-| 显示模式 | 勾选的作用 |
-| --- | --- |
-| 隐藏选中 | 从相应系统候选列表中隐藏勾选项 |
-| 只显示选中 | 只保留勾选项；该分类没有选中规则时显示全部 |
-| 全部显示 | 暂停过滤，保留已保存的选择 |
-
-**应用行的勾选针对当前分类、当前搜索条件下显示的组件**，不是禁用整个应用。展开应用后，可以单独选择某个组件；清理某一分类不会自动清理其他分类。已配置但暂时无法扫描到的项仍可在“已选规则”中取消。
-
-每个页面都可以独立设置**批量操作锁**。应用或子项**向右滑加锁、向左滑解锁**；未锁定时不显示锁图标，锁定后才显示状态图标。锁定只保护“全选、反选等批量操作”：整体锁定会保护整个应用，部分锁定只保护指定子项；锁定项仍可手动单独修改。锁定状态不会参与排序，也不会改变“已选 / 半选 / 未选”的计算；“全部”下的“已锁定”会汇总各分类中的整体或部分锁定项目。
-
-规则、排序和组件页统一提供紧凑的“**应用：全部 / 用户应用 / 系统应用**”下拉筛选，并可与“查看：全部 / 已选 / 未选 / 已锁定”等状态筛选组合使用。系统/用户属性只决定当前显示和批量操作范围，**不参与排序、不改变选择状态、不改变锁定或 Root 状态**；已更新的预装系统应用仍按系统应用处理。
-
-这些规则调整系统返回的候选列表，不卸载应用，也不修改组件的启用状态。扫描目录是配置入口，不代表每一种文件的实际菜单都包含同样的候选。
-
-### 排序：让常用应用优先出现
-
-五类列表分别保存优先顺序，排序以应用为单位；浏览器域名也可拥有独立优先顺序，并在未设置时继承“浏览器 · 全部”。
-
-- 勾选应用即可加入优先列表，并移动到对应位置；取消勾选后回到未优先应用的默认名称顺序。
-- 已优先应用按保存的顺序排在前面，未优先应用按名称排列；可筛选全部、未优先、已优先或已锁定，并可再按用户应用/系统应用缩小范围。应用类型筛选和锁定都不会移动应用或改写已保存的排序位置。
-- **长按已优先应用可以拖动排序**，靠近列表边缘自动滚动，松手保存。展开后也可以使用上移、下移按钮。
-- 搜索时只调整匹配的优先应用，未显示的配置保留原位置。被规则隐藏的候选不会显示在当前排序列表，其已保存顺序仍会保留。
-
-模块在已适配的系统查询和选择器排序环节应用优先顺序。厂商定制选择器、应用自行重排或自建菜单可能有不同表现。
-
-### 组件：管理磁贴、快捷方式和小部件
-
-“组件”页读取系统实际状态，支持搜索、禁用状态筛选，以及用户应用/系统应用独立查看和批量管理。
-
-| 分类 | 支持范围 |
-| --- | --- |
-| 磁贴 | 应用提供的标准 `TileService`；不包含没有独立服务的 Wi-Fi、蓝牙等系统内置磁贴 |
-| 快捷方式 | Android `LauncherApps` 注册的快捷方式配置 Activity + 旧 `ACTION_CREATE_SHORTCUT` 创建入口；不包含需要 Launcher 主机权限的动态/固定快捷方式实例或应用私有项目 |
-| 小部件 | 优先读取 `AppWidgetManager` 当前注册的 Provider，并合并 Manifest 小部件接收器作为兼容补充 |
-
-组件发现采用“**标准 API 优先、旧方式补充、异常自动降级**”的策略。同一个组件可记录多个发现来源并自动去重；诊断包会记录 `PACKAGE_MANAGER`、`APP_WIDGET_MANAGER`、`LAUNCHER_APPS` 等来源，方便判断漏项发生在哪一层。应用安装、更新或卸载后会自动使候选缓存失效，避免长期显示旧列表。
-
-新版还加入组件发现运行时能力握手。若 APK 已更新但 system_server 仍运行旧 Hook，List Cleaner 不会强行调用新发现路径：Widget 会自动退回 Manifest 扫描；LauncherApps 或 Widget 注册表调用出现异常时也会 fail-open，保留旧扫描结果而不是让组件页或应用崩溃。重启并加载新版 Hook 后，确认支持新协议才重新启用完整的 AppWidgetManager 发现。
-
-**勾选表示禁用，取消勾选表示明确启用**，不是恢复此前的默认状态。操作前会检查 Root 权限，执行后回读系统结果；未授权或授权等待超时时会提示处理方法，不会显示虚假的成功勾选。
-
-组件页同样支持批量操作锁和“已锁定”筛选。**向右滑加锁、向左滑解锁**；未锁定时不显示锁图标，锁定后才显示状态图标。整体锁会保护整个应用，部分锁只保护对应子项；“全部 → 已锁定”会汇总磁贴、快捷方式和小部件各分类中的锁定项目。锁只用于跳过全选、反选等批量操作，**不等于 Root 组件禁用状态，也不参与排序、不改变已选/半选/未选状态**；被锁项目仍可手动单独修改。
-
-Root 真禁用仍是组件管理的主机制。List Cleaner 会同时保存“应保持禁用”的组件策略，并通过 LSPosed/system_server 增加第二层发现结果过滤：即使系统或厂商服务在启动过程中短暂恢复组件，磁贴、快捷方式和小部件发现列表仍会继续过滤这些受保护组件。List Cleaner 自身查询会旁路过滤，以便继续管理和恢复它们。
-
-开机后会自动校正持久禁用状态：`BOOT_COMPLETED` 和用户解锁后各执行一次延迟检查，并在启动稳定后再复查；应用安装/更新后也会触发校正。校正只处理“策略要求禁用、但系统实际已恢复”的组件，已保持 `DISABLED` 的组件不会重复执行 Root 命令。
-
-组件操作仅针对本应用所在的 Android 用户。系统核心组件、SystemUI、本应用及所属应用整体停用的组件只展示，不允许操作。
-
-禁用会影响使用该组件的位置，包括已添加的磁贴或小部件；重新启用不保证恢复原位置。清除本应用数据或卸载模块**不会撤销系统中的组件禁用状态**，需要在卸载前按需启用。
-
-### 备份与诊断
-
-- 导入、导出 JSON 规则备份，保存规则、显示模式和优先顺序，兼容 v1–v10 备份。
-- 规则备份**不保存或恢复 Root 组件的实际启用状态**。旧磁贴配置只保留兼容读取，不自动转换为组件禁用操作。
-- 状态页查看模块连接、作用域及配置同步情况，可导出诊断 ZIP，辅助排查过滤、排序和 Root 操作问题。诊断可能包含应用列表和日志，分享前请检查内容。
-
-## 开始使用
-
-1. 从 [Releases](https://github.com/yagay/ListCleaner/releases/latest) 下载并安装正式版 APK。
-2. 在支持 API 102 的模块管理器中启用“列表清理”，按推荐配置系统和实际选择器作用域，按框架提示重启。
-3. 打开应用，在状态页确认模块和配置同步状态，再到规则页选择分类与显示模式。
-4. 需要调整应用先后顺序时，在排序页勾选并拖动常用应用。
-5. 需要管理磁贴、快捷方式或小部件时，进入组件页，并在 Root 管理器中授权。授权后返回重新操作即可。
-
-组件管理独立于规则显示模式。Root 负责真实组件禁用，LSPosed 的 system_server 层负责防恢复与发现结果过滤；无需把每个第三方应用加入模块作用域。系统或厂商缓存仍可能需要关闭菜单后重新打开。
-
-## 常见问题
-
-**勾选组件后没有变化？**
-先检查 Root 管理器是否允许本应用使用 `su`，再根据应用提示重试。LSPosed 授权与 Root 授权是两回事。组件列表以系统回读结果为准。
-
-**某个应用或入口没有出现在列表？**
-不同 Intent、应用可见性和厂商实现会影响扫描结果。自建分享面板、私有快捷方式和不规范声明的组件不一定受支持。显式指定目标的调用也不等同于系统候选菜单。
-
-**更新时提示签名冲突？**
-正式版应使用同一发布签名覆盖升级。Debug 使用调试签名，可能无法覆盖正式版或其他构建机生成的 Debug。需要卸载前请先导出规则，并检查是否要恢复已禁用的组件。
-
-## 构建与开发
-
-当前工程使用 Java 17、Gradle 9.4.1、AGP 9.2.0、Compile/Target SDK 37、Min SDK 31，以及 libxposed API/Service 102.0.0。请安装对应 Android SDK，并在本地配置 SDK 路径。
-
-```bash
-bash ./gradlew :app:assembleDebug
-bash ./gradlew :app:testDebugUnitTest
-bash ./gradlew :app:assembleRelease
+```
+┌────────────────────────┐        ┌─────────────────────────────┐
+│  管理端（普通应用进程）  │        │  system_server（注入进程）    │
+│  ui/ data/ domain/     │        │  xposed/                    │
+│                        │        │                             │
+│  RuleRepository ───────┼──配置──▶│  ListCleanerModule          │
+│  (SharedPreferences)   │  分块   │   ├─ queryIntentActivities  │
+│                        │  协议   │   ├─ mSortedList 排序        │
+│  RuntimeStatus ◀───────┼──ack───│   ├─ AppsFilter 可见性       │
+│  (命中数/菜单快照)      │  label  │   ├─ FloatingToolbar 观测    │
+└────────────────────────┘        │   └─ 组件状态守护             │
+                                   └─────────────────────────────┘
 ```
 
-本地化架构见 [本地化说明](docs/LOCALIZATION.md)。
+- **配置下发**：`RuntimeProtocol` 把序列化后的 `ModuleConfig` 切成不超过 20k 字符的分块，通过 `PackageManager` 查询的 Intent extra 传给 hook。
+- **状态回传**：hook 把 `hookCompat:digest:hits…:菜单快照` 编码进 `ResolveInfo.nonLocalizedLabel`，管理端解析成 `RuntimeStatus`。
+- 这条通道不依赖 RemotePreferences 的缓存刷新，因此 APK 更新后旧 hook 仍能正确拒绝新配置。
 
-签名配置及自动发布流程见 [Release 构建说明](docs/RELEASE.md)。不要提交私钥、签名密码或 `local.properties`。
+### 2.2 目录
 
-main 分支的源码或构建配置变更会自动编译 Debug 并运行单元测试。正式发布请使用 Release 工作流；已有版本不会重复发布，新版本需要同时更新版本名和版本码。
+```
+app/src/main/java/com/eio258/cleanchooser/
+├── ListCleanerApp.kt          应用入口：会话、同步、RuntimeStatus
+├── ui/                        Compose Material3，单 Activity
+│   ├── MainActivity.kt        Scaffold：顶栏 / 底栏 / 二级页路由
+│   ├── Theme.kt               品牌色、字号、圆角
+│   ├── DesignSystem.kt        统一行组件、卡片、分段控件
+│   ├── HomeScreen.kt          首页：健康条 + 三张任务卡（就地展开）
+│   ├── WorkbenchScreen.kt     工作台：规则 / 排序 / 组件 / 文本菜单 四段
+│   ├── RulesList.kt           规则段
+│   ├── PriorityList.kt        排序段（长按拖动、边缘滚动）
+│   ├── ComponentsList.kt      组件段（Root 启停）
+│   ├── TextMenuScreen.kt      文本菜单段（系统动作 + 扩展项）
+│   ├── AppDetailScreen.kt     应用详情：已选择 / 未选择，或组件三态
+│   ├── ListHeader.kt          频道 chips + 筛选面板 + 帮助
+│   ├── MainControls.kt        顶栏、搜索框
+│   ├── StatusScreen.kt        状态页：显示模式 / 运行时 / 同步 / 备份 / 诊断
+│   └── ...                    弹窗、作用域、组件发现控制器
+├── data/                      RuleRepository、IntentCatalog、RootComponentCatalog
+├── domain/                    纯策略：Rule、Priority、OpenType、BrowserLink、
+│                              ModuleConfig、RuntimeProtocol、TextMenuSnapshot
+├── runtime/                   开机校正、JobService、ServiceSession
+└── xposed/                    system_server 侧
+    ├── ListCleanerModule.kt   主 hook（查询 / 排序 / 可见性 / ack）
+    ├── MenuSnapshotProbe.kt   文本菜单观测
+    ├── ComponentStateGuardModule.kt
+    ├── ComponentDiscoveryFilterModule.kt
+    └── DirectShareConsistencyModule.kt
+```
+
+### 2.3 数据模型
+
+| 类型 | 作用 | 存储 |
+|---|---|---|
+| `ComponentRule` | `PROCESS_TEXT\|包名\|类名`，一条候选规则 | 规则集合 |
+| `PriorityConfig` | 每个 `IntentKind` 一份包名顺序 + 组件显示名 | prefs JSON |
+| `OpenTypeConfig` | 打开方式的子类型规则与优先级 | prefs JSON |
+| `BrowserLinkConfig` | 域名规则、域名优先级 | prefs JSON |
+| `TextMenuSnapshot` | 系统菜单实测顺序（只读，不回写） | 运行时通道 |
+| `ModuleConfig` | 以上内容的原子快照 + 文本菜单组件顺序 | 下发通道 |
+
+### 2.4 Hook 点
+
+| 目标 | 阶段 | 作用 |
+|---|---|---|
+| `IPackageManagerBase.queryIntentActivities` | 查询 | 过滤候选、注入 policy metadata、回 ack |
+| `IntentResolver` 的 `mSortedList` | 排序 | 应用优先顺序（含固定槽位保护） |
+| `AppsFilter` | 可见性 | 按调用方隐藏目标包 |
+| `FloatingToolbar` 菜单构建 | 观测 | 抓真实文本菜单条目与顺序（只读） |
+| 组件发现 / 状态 | 守护 | 防止系统恢复已禁用组件、过滤发现结果 |
+
+### 2.5 UI 结构
+
+```
+底栏 3 项
+├─ 首页     健康条 + 菜单候选/显示顺序/组件三张卡 + 备份、诊断入口
+├─ 工作台   搜索栏 + 四段
+│            ├─ 规则    频道 chips + 筛选面板 + 应用行 → 详情
+│            ├─ 排序    同上 + 长按拖动 + 排名
+│            ├─ 组件    种类 chips + 启用状态 + 应用行 → 详情
+│            └─ 文本菜单  系统动作（只读）+ 扩展项（隐藏/排序）
+└─ 状态     显示模式 / 运行时能力 / 同步与作用域 / 备份 / 诊断
+```
+
+详情页为二级路由，进入时隐藏底栏；返回键逐层回退。
+
+---
+
+## 3. 构建
+
+要求 JDK 17、Android SDK 37、Gradle 9.4.1、AGP 9.2。
+
+```bash
+# 交付用：先 clean 再打包，避免旧 APK 的尾部字节残留
+gradle :app:assembleClean
+
+# 常规调试
+gradle :app:assembleDebug
+gradle :app:testDebugUnitTest
+```
+
+`local.properties` 里写 `sdk.dir=<你的 SDK 路径>`，不要提交。
+
+打包后 `verifyApkSize` 会比对「文件大小」与「zip 条目总量」，差值超过 1 MB 就告警，提示改用 `assembleClean`。
+
+---
+
+## 4. 使用
+
+1. 安装 APK。
+2. LSPosed 启用模块，作用域为静态声明的三项：`system`、`android`、`com.android.intentresolver`。
+3. 重启手机让 hook 加载。
+4. 首页确认「已连接」，再到工作台配置规则。
+5. 需要管理组件时，在 Root 管理器授权；组件列表只读不需要 Root。
+
+已打开的菜单需要关闭重开才会应用新规则。
+
+---
+
+## 5. 与上游的差异
+
+- 包名 `com.yagay.ListCleaner` → `com.eio258.cleanchooser`，应用名改为「选择器净化」。
+- UI 全量重构：三页导航、统一行组件、品牌配色与字号、底部面板替代原生下拉与对话框。
+- 新增文本菜单工作区与菜单观测 hook。
+- 删除内联展开、`ModuleStatusRow`、`ComponentRow`、`RuntimePanel` 等旧实现，移除 170 条未使用字符串。
+- debug 构建启用 R8，体积从约 56 MB 降到 9.5 MB。
+
+详细清单见 [NOTICE.md](NOTICE.md)。

@@ -34,11 +34,8 @@
     <string name="root_invert_stopped">已完成 %1$d/%2$d，反选已停止：%3$s。已完成项不回滚。</string>
     <string name="root_post_scan_failed">操作后扫描失败，请刷新；不使用旧状态</string>
 
-    <string name="root_screen_title">组件清理 · Root</string>
     <string name="root_permission_required">需要 Root 授权</string>
     <string name="root_permission_ack">知道了</string>
-    <string name="root_screen_help">用于禁用或恢复应用提供的桌面图标、快捷设置磁贴、快捷方式创建入口和小部件。组件发现优先使用 Android 子系统注册表；注册表不可用、调用异常或运行中的 Hook 版本较旧时会自动降级到安全扫描，不因发现失败让组件页崩溃。Root 负责真实修改组件状态；期望禁用状态会持久保存，并通过 LSPosed/system_server 再次过滤发现结果，在开机、解锁及应用更新后自动校正。</string>
-    <string name="root_filter_help">“应用”可筛选全部、用户应用或系统应用，计数和批量操作只针对当前可见范围。应用或子项向右滑加锁、向左滑解锁；未锁定不显示锁图标，锁定后才显示状态图标。整体锁保护整个应用，部分锁只保护对应子项；“全部 → 已锁定”会汇总桌面图标、磁贴、快捷方式和小部件分类中的锁定项目。锁只跳过批量操作，仍可手动修改，不改变 Root 真实禁用状态，也不参与排序；核心受保护系统组件仍仅展示。</string>
     <string name="root_selection_semantics">勾选＝组件真实已禁用。当前状态仍直接回读 Android，同时保存期望禁用策略；若系统在启动或更新后恢复组件，会继续过滤发现结果并自动重新禁用。</string>
     <string name="root_change_semantics">勾选立即禁用，取消勾选立即明确启用，不再弹窗确认。禁用会影响正在使用此组件的功能；启用不是恢复原默认状态。</string>
     <string name="root_kind_all_help">优先使用 Android 各子系统的正式注册表：桌面 Launcher Activity、标准 TileService、LauncherApps 快捷方式配置 Activity + 旧创建入口、AppWidgetManager Provider + Manifest 补充；不会禁用整个应用。</string>
@@ -46,21 +43,8 @@
     <string name="root_kind_tile_help">仅列出标准 TileService。Wi-Fi、蓝牙等没有独立服务的系统内置磁贴不支持；核心系统组件仅展示。</string>
     <string name="root_kind_shortcut_help">列出 LauncherApps 返回的快捷方式配置 Activity，并合并旧式快捷方式创建 Activity；不包含需要 Launcher 主机权限的动态/固定快捷方式实例或应用私有项目。禁用后可能影响其他使用该 Activity 的入口。</string>
     <string name="root_kind_widget_help">优先读取 AppWidgetManager 的 Provider 注册表，并合并 Manifest 小部件接收器作为兼容补充。禁用可能使已放置的小部件失效；启用不保证恢复原布局。</string>
-    <string name="root_summary">应用列表 · %1$d · %2$d 个组件</string>
-    <string name="root_show_disabled_only">只看已禁用</string>
-    <string name="root_show_all">查看全部</string>
-    <string name="root_invert">反选</string>
-    <string name="root_enabled">已启用</string>
-    <string name="root_disabled">已禁用</string>
-    <string name="root_default_enabled">默认启用</string>
-    <string name="root_default_disabled">默认关闭</string>
-    <string name="root_explicit_enabled">明确启用</string>
-    <string name="root_disabled_unknown_source">已禁用（来源未知）</string>
-    <string name="root_unknown_state">状态未知</string>
-    <string name="root_protected">受保护</string>
+    <string name="root_summary">%1$d 个应用 · %2$d 个组件</string>
     <string name="root_disabled_summary">已禁用 %1$d/%2$d · %3$s</string>
     <string name="root_display_only_count">%1$d 项仅展示，不参与批量操作</string>
-    <string name="root_component_count">%1$d 个组件</string>
-    <string name="root_app_count">%1$d 个应用</string>
     <string name="root_no_components">没有匹配的组件</string>
 </resources>

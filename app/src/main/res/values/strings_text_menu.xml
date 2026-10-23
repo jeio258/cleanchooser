@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="text_menu_title">Text menu</string>
+    <string name="text_menu_observed">Active · system menu observed</string>
+    <string name="text_menu_not_observed">System menu not observed; showing manageable extensions only</string>
+    <string name="text_menu_saved_pending">Saved, not yet confirmed in the system menu</string>
+    <string name="text_menu_system_section">System actions</string>
+    <string name="text_menu_system_hint">Provided by the system, position fixed</string>
+    <string name="text_menu_system_subtitle">System action · not reorderable</string>
+    <string name="text_menu_system_badge">System</string>
+    <string name="text_menu_ext_section">Extensions</string>
+    <string name="text_menu_drag_hint">Long-press to reorder; restore hidden entries first</string>
+    <string name="text_menu_hidden">Hidden</string>
+    <string name="text_menu_dragging">Moving</string>
+    <string name="text_menu_hidden_count">%1$d hidden</string>
+    <string name="text_menu_empty">No text processing extensions</string>
+    <string name="text_menu_reset_order">Reset order</string>
+    <string name="text_menu_clear_all">Show all</string>
+</resources>

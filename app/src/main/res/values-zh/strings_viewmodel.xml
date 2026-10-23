@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="state_saved_waiting_connection">已保存，等待连接</string>
     <string name="candidate_configured_not_observed">已配置，但本次未扫描到；不代表已卸载</string>
 
     <string name="file_preview_checking">正在检查实际文件的候选和规则效果，不会打开文件…</string>
@@ -46,15 +45,4 @@
     <string name="module_status_read_failed">无法读取 LSPosed 模块状态</string>
     <string name="editing_requires_recovery">请先完成远程配置恢复或重置，避免覆盖原有规则</string>
 
-    <string name="scope_lsposed_not_connected">未连接 LSPosed，请先启用模块</string>
-    <string name="scope_service_changed_retry">服务连接已变化，请重新检查</string>
-    <string name="scope_granted_read_failed">无法读取已授权作用域，未提交申请</string>
-    <string name="scope_no_auto_host">未确认可自动申请的选择器宿主，请查看检测详情并在 LSPosed 中手动核查</string>
-    <string name="scope_all_recommended_granted">检测到的推荐作用域均已授权，无需重复申请</string>
-    <string name="scope_service_changed_result">服务连接已变化，请重新检查授权结果</string>
-    <string name="scope_request_timeout">等待授权超时，框架申请可能仍在处理；请先在 LSPosed 查看结果</string>
-    <string name="scope_result_unverified">框架已返回，暂时无法核实授权结果，请重新检查</string>
-    <string name="scope_still_missing">仍缺少作用域：%1$s</string>
-    <string name="scope_granted_confirmed">推荐作用域已确认授权；若目标尚未加载，请重新启动相关选择器，必要时重启设备</string>
-    <string name="scope_request_failed">申请作用域失败</string>
 </resources>

@@ -1,4 +1,5 @@
 import java.util.Properties
+import java.util.zip.ZipFile
 
 plugins {
     id("com.android.application")
@@ -30,20 +31,20 @@ check(signingValues.all { it == null } || hasReleaseSigning) {
 // Hook compatibility is intentionally independent from the APK release version.
 // Keep this value unchanged for UI/resources/manager-only releases. Bump it to the
 // current versionCode only when xposed/** or a contract used by hooked processes changes.
-val hookCompatVersionCode = 43
+val hookCompatVersionCode = 44
 
 android {
-    namespace = "com.yagay.ListCleaner"
+    namespace = "com.eio258.cleanchooser"
     compileSdk {
         version = release(37) { minorApiLevel = 0 }
     }
 
     defaultConfig {
-        applicationId = "com.yagay.ListCleaner"
+        applicationId = "com.eio258.cleanchooser"
         minSdk = 31
         targetSdk = 37
-        versionCode = 43
-        versionName = "1.6.18"
+        versionCode = 44
+        versionName = "1.6.19"
         buildConfigField("long", "HOOK_COMPAT_VERSION_CODE", "${hookCompatVersionCode}L")
 
         if (ciArm64Only) {
@@ -78,6 +79,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
         release {
             if (hasReleaseSigning) signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = true
@@ -85,6 +91,40 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
+}
+
+// The APK packager rewrites its output in place. When a build is smaller than the previous
+// one, the tail of the old file stays on disk while the zip directory only lists the new
+// contents, so the APK can look tens of megabytes larger than it really is. Deleting the file
+// before packaging is not safe (the incremental packager then writes only the changed dex),
+// so guard the result instead and force a clean build when garbage is detected.
+val verifyApkSize = tasks.register("verifyApkSize") {
+    group = "verification"
+    description = "Fails when the packaged APK still carries bytes from a previous build."
+    doLast {
+        val apkDir = layout.buildDirectory.dir("outputs/apk/debug").get().asFile
+        apkDir.listFiles { file -> file.extension == "apk" }.orEmpty().forEach { apk ->
+            ZipFile(apk).use { zip ->
+                val entries = zip.entries().asSequence().sumOf { it.size.coerceAtLeast(0L) }
+                if (apk.length() > entries + 1_048_576L) {
+                    logger.warn(
+                        "APK ${apk.name} is ${apk.length() / 1048576} MB but its entries total " +
+                            "${entries / 1048576} MB: stale bytes from a previous build. " +
+                            "Run :app:assembleClean for a compact artifact."
+                    )
+                }
+            }
+        }
+    }
+}
+tasks.matching { it.name == "assembleDebug" }.configureEach { finalizedBy(verifyApkSize) }
+
+// Convenience: the only way to guarantee a compact APK, because the packager rewrites in place.
+tasks.register("assembleClean") {
+    group = "build"
+    description = "clean + assembleDebug, guarantees a compact APK without stale bytes."
+    dependsOn("clean")
+    finalizedBy("assembleDebug")
 }
 
 // An unsigned build is allowed only when explicitly requested for CI validation.
