@@ -21,7 +21,7 @@ import androidx.compose.material.icons.rounded.BugReport
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
-import androidx.compose.material.icons.rounded.Sort
+import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Icon
@@ -133,7 +133,7 @@ fun HomeScreen(
         }
 
         TaskCard(
-            icon = Icons.Rounded.Sort,
+            icon = Icons.AutoMirrored.Rounded.Sort,
             title = stringResource(R.string.home_priority_title),
             summary = stringResource(
                 R.string.home_priority_summary,
