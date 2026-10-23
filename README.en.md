@@ -150,3 +150,46 @@ An already-open menu must be closed and reopened before new rules apply.
 - Debug builds now run R8, shrinking the APK from roughly 56 MB to 9.5 MB.
 
 See [NOTICE.md](NOTICE.md) for the complete list.
+
+---
+
+## 6. License and provenance
+
+This repository is not an original work; the two sources below must be treated separately.
+
+### 6.1 Upstream: yagay/ListCleaner
+
+| Item | Value |
+|---|---|
+| Repository | https://github.com/yagay/ListCleaner |
+| Commit used | `0d8657c` |
+| License | **no LICENSE file in the repository** |
+
+No license means all rights reserved. This repository is a modified version and **carries no license and no upstream permission**. Obtain permission from the upstream author before publishing binaries or source; otherwise keep it local.
+
+### 6.2 Reference: txtoi (text selection menu control)
+
+| Item | Value |
+|---|---|
+| Repository | https://github.com/TheKingBucket001/txtoi |
+| License | **GPL-3.0-only** |
+| Usage | interaction and data design only, **no source code copied** |
+
+Because no txtoi code was copied, this repository is not a derivative work of txtoi and is not required to be GPL. If txtoi source is ever merged, the whole project must be released under GPL-3.0 with complete source; that is **not** the case today.
+
+GPL-3.0 text: https://www.gnu.org/licenses/gpl-3.0.txt
+
+### 6.3 Feature provenance
+
+| Feature | Source | Implementation |
+|---|---|---|
+| Share / open-with filtering | upstream ListCleaner | existing code, package renamed |
+| Priority ordering, open types, browser hosts | upstream ListCleaner | existing code |
+| Tiles / shortcuts / widgets | upstream ListCleaner | existing code |
+| Three-page navigation, four segments, home cards | this project | rewritten |
+| Shared rows, brand palette, bottom sheets | this project | rewritten |
+| Text menu hide and reorder | txtoi (design reference) | independently implemented |
+| Text menu reset order / show all | txtoi (design reference) | independently implemented |
+| System menu observation | txtoi (idea reference) | independent FloatingToolbar implementation |
+
+Third-party dependencies and licenses: [NOTICE.md](NOTICE.md) section 4.
