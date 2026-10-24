@@ -57,6 +57,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eio258.cleanchooser.BuildConfig
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.CleanupKind
+import com.eio258.cleanchooser.data.PersistentComponentState
+import com.eio258.cleanchooser.data.RootComponent
+import com.eio258.cleanchooser.data.RootComponentScan
 import com.eio258.cleanchooser.domain.IntentKind
 
 /**
@@ -74,8 +77,9 @@ fun HomeScreen(
     collectingDiagnostics: Boolean,
 ) {
     val scan by vm.componentScan.collectAsStateWithLifecycle()
-    val textMenuOrder by vm.textMenuOrder.collectAsStateWithLifecycle()
+    val disabledKeys by vm.disabledComponentKeys.collectAsStateWithLifecycle()
     val visibilityScopes by vm.visibilityScopes.collectAsStateWithLifecycle()
+    val textMenuOrder by vm.textMenuOrder.collectAsStateWithLifecycle()
     val channel = IntentKind.SHARE
     val ranked = state.priorities.apps[channel].orEmpty()
     val preview = remember(state.groups, state.selected) {
@@ -100,7 +104,7 @@ fun HomeScreen(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        HealthRow(state)
+        HealthRow(state, onOpenLogs = vm::openLogs)
 
         SectionLabel(stringResource(R.string.home_section_cleanup))
 
@@ -264,6 +268,12 @@ fun HomeScreen(
                 )
                 CardDivider()
                 HomeActionRow(
+                    stringResource(R.string.logs_title),
+                    Icons.Rounded.BugReport,
+                    vm::openLogs
+                )
+                CardDivider()
+                HomeActionRow(
                     stringResource(R.string.home_reset_default),
                     Icons.Rounded.RestartAlt,
                     { resetSheetOpen = true }
@@ -290,15 +300,22 @@ fun HomeScreen(
     if (resetSheetOpen) {
         ResetDefaultsSheet(
             state = state,
+            disabledKeys = disabledKeys,
+            scan = scan,
+            visibilityScopeCount = visibilityScopes.size,
             textMenuCount = textMenuOrder.size,
-            visibilityCount = state.hiddenFromApps.size + visibilityScopes.size,
-            disabledComponents = disabled.size,
             onDismiss = { resetSheetOpen = false },
-            onConfirm = {
+            onRestoreRules = vm::resetRules,
+            onRestorePriority = vm::resetPriorities,
+            onRestoreOpenTypes = vm::resetOpenTypes,
+            onRestoreBrowserHosts = vm::resetBrowserHosts,
+            onRestoreTextMenu = vm::resetTextMenuOrder,
+            onRestoreVisibility = vm::resetVisibility,
+            onRestoreKind = vm::restoreComponentsByKind,
+            onRestoreAll = {
                 resetSheetOpen = false
-                vm.resetAllConfig()
-                val restorable = scan.items.filter { it.enabled == false && it.blocked == null }
-                if (restorable.isNotEmpty()) vm.changeComponents(restorable, true)
+                vm.resetMenuConfig()
+                vm.restoreAllComponents()
             }
         )
     }
@@ -308,52 +325,108 @@ fun HomeScreen(
 @Composable
 private fun ResetDefaultsSheet(
     state: MainState,
+    disabledKeys: Set<String>,
+    scan: RootComponentScan,
+    visibilityScopeCount: Int,
     textMenuCount: Int,
-    visibilityCount: Int,
-    disabledComponents: Int,
     onDismiss: () -> Unit,
-    onConfirm: () -> Unit,
+    onRestoreRules: () -> Unit,
+    onRestorePriority: () -> Unit,
+    onRestoreOpenTypes: () -> Unit,
+    onRestoreBrowserHosts: () -> Unit,
+    onRestoreTextMenu: () -> Unit,
+    onRestoreVisibility: () -> Unit,
+    onRestoreKind: (CleanupKind) -> Unit,
+    onRestoreAll: () -> Unit,
 ) {
-    val typedRules = state.openTypes.rules.values.sumOf { it.size } +
-        state.browserLinks.rules.values.sumOf { it.size }
+    // Components this app disabled are the only root-managed entries a restore may touch.
+    val restorable = remember(scan.items, disabledKeys) {
+        scan.items.filter {
+            it.enabled == false && it.blocked == null &&
+                PersistentComponentState.key(it.user, it.component) in disabledKeys
+        }
+    }
+    val kindCounts = remember(restorable) {
+        CleanupKind.entries.associateWith { kind -> restorable.count { it.kind == kind } }
+    }
+    val sections = listOf(
+        ResetRow(
+            stringResource(R.string.reset_section_item_count, stringResource(R.string.reset_section_rules), state.selected.size),
+            state.selected.size, onRestoreRules
+        ),
+        ResetRow(
+            stringResource(R.string.reset_section_item_count, stringResource(R.string.reset_section_priority), state.priorities.apps.values.flatten().distinct().size),
+            state.priorities.apps.values.flatten().distinct().size, onRestorePriority
+        ),
+        ResetRow(
+            stringResource(R.string.reset_section_item_count, stringResource(R.string.reset_section_open_types), state.openTypes.rules.values.sumOf { it.size }),
+            state.openTypes.rules.values.sumOf { it.size }, onRestoreOpenTypes
+        ),
+        ResetRow(
+            stringResource(R.string.reset_section_item_count, stringResource(R.string.reset_section_browser_hosts), state.browserLinks.rules.values.sumOf { it.size }),
+            state.browserLinks.rules.values.sumOf { it.size }, onRestoreBrowserHosts
+        ),
+        ResetRow(
+            stringResource(R.string.reset_section_item_count, stringResource(R.string.reset_section_text_menu), textMenuCount),
+            textMenuCount, onRestoreTextMenu
+        ),
+        ResetRow(
+            stringResource(R.string.reset_section_item_count, stringResource(R.string.reset_section_visibility), state.hiddenFromApps.size + visibilityScopeCount),
+            state.hiddenFromApps.size + visibilityScopeCount, onRestoreVisibility
+        )
+    )
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     ) {
         Column(
             Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             Text(
                 stringResource(R.string.reset_default_title),
                 style = MaterialTheme.typography.titleMedium
             )
             Text(
-                stringResource(R.string.reset_default_message),
+                stringResource(R.string.reset_default_pick),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp)
             )
-            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                ResetItem(stringResource(R.string.reset_default_item_rules, state.selected.size))
-                ResetItem(
-                    stringResource(
-                        R.string.reset_default_item_priority,
-                        state.priorities.apps.values.flatten().distinct().size
-                    )
+            sections.forEach { section -> ResetSectionRow(section) }
+            SectionLabel(stringResource(R.string.reset_section_components))
+            Text(
+                stringResource(R.string.reset_default_components_hint),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            val componentKinds = CleanupKind.entries.filter { (kindCounts[it] ?: 0) > 0 }
+            if (componentKinds.isEmpty()) {
+                Text(
+                    stringResource(R.string.reset_default_components_none),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
                 )
-                ResetItem(stringResource(R.string.reset_default_item_typed, typedRules))
-                ResetItem(stringResource(R.string.reset_default_item_text_menu, textMenuCount))
-                ResetItem(stringResource(R.string.reset_default_item_visibility, visibilityCount))
-                if (disabledComponents > 0) {
-                    ResetItem(stringResource(R.string.reset_default_item_components, disabledComponents))
+            } else {
+                componentKinds.forEach { kind ->
+                    ResetSectionRow(
+                        ResetRow(
+                            stringResource(
+                                R.string.reset_kind_count,
+                                stringResource(kind.titleRes()),
+                                kindCounts[kind] ?: 0
+                            ),
+                            kindCounts[kind] ?: 0
+                        ) { onRestoreKind(kind) }
+                    )
                 }
             }
             Text(
                 stringResource(R.string.reset_default_keep_diagnostic),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(top = 10.dp)
             )
             Row(
                 Modifier.fillMaxWidth().padding(top = 12.dp),
@@ -361,23 +434,53 @@ private fun ResetDefaultsSheet(
             ) {
                 TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
                 Button(
-                    onClick = onConfirm,
+                    onClick = onRestoreAll,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.error
                     )
-                ) { Text(stringResource(R.string.reset_default_confirm)) }
+                ) { Text(stringResource(R.string.reset_default_all)) }
             }
         }
     }
 }
 
+private data class ResetRow(val label: String, val count: Int, val onRestore: () -> Unit)
+
 @Composable
-private fun ResetItem(text: String) {
-    Text(
-        text,
-        style = MaterialTheme.typography.bodyMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+private fun ResetSectionRow(section: ResetRow) {
+    var confirming by remember { mutableStateOf(false) }
+    val label = section.label
+    val onRestore = section.onRestore
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            label,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        if (confirming) {
+            TextButton(onClick = { confirming = false }) {
+                Text(stringResource(R.string.common_cancel))
+            }
+            Button(
+                onClick = {
+                    confirming = false
+                    onRestore()
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.error
+                )
+            ) { Text(stringResource(R.string.reset_default_confirm_yes)) }
+        } else {
+            TextButton(onClick = { confirming = true }, enabled = section.count > 0) {
+                Text(stringResource(R.string.reset_default_restore_one))
+            }
+        }
+    }
 }
 
 @Composable
@@ -496,7 +599,7 @@ private fun HomeActionRow(
 }
 
 @Composable
-private fun HealthRow(state: MainState) {
+private fun HealthRow(state: MainState, onOpenLogs: () -> Unit) {
     val status = state.module
     val titleRes = when {
         !status.connected -> R.string.module_lsposed_disconnected
@@ -512,7 +615,8 @@ private fun HealthRow(state: MainState) {
 
     AppCard(Modifier.padding(top = 8.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.fillMaxWidth().clickable(onClick = onOpenLogs)
+                .padding(horizontal = 16.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {

@@ -47,4 +47,9 @@
     <string name="root_disabled_summary">已禁用 %1$d/%2$d · %3$s</string>
     <string name="root_display_only_count">%1$d 项仅展示，不参与批量操作</string>
     <string name="root_no_components">没有匹配的组件</string>
+    <string name="root_requesting_restore">正在请求恢复系统默认状态…</string>
+    <string name="root_progress_restore">正在恢复 %1$d/%2$d：%3$s</string>
+    <string name="root_batch_restored">已恢复 %1$d 个组件的系统默认状态</string>
+    <string name="root_component_restored">已恢复「%1$s」的系统默认状态</string>
+    <string name="root_component_already_default">该组件已处于系统默认状态</string>
 </resources>

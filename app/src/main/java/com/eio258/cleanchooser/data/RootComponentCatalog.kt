@@ -266,6 +266,58 @@ class RootComponentCatalog(private val context: Context) {
         return previous.copy(items = refreshed, observedAt = System.currentTimeMillis())
     }
 
+    /**
+     * Restores a component to its system default state by clearing the enabled-state override.
+     * The state is observed afterwards: a component is only reported as restored once PackageManager
+     * confirms the override is gone, so a silent failure can never be shown as success.
+     */
+    suspend fun restore(target: RootComponent): String {
+        require(target.user == user) { context.getString(R.string.root_user_changed) }
+        val discovered = query(target.kind).firstOrNull {
+            componentKey(it.info) == target.component
+        } ?: error(context.getString(R.string.root_component_missing))
+        val fresh = read(target.kind, discovered)
+        check(fresh.blocked == null) {
+            fresh.blocked ?: context.getString(R.string.root_operation_not_allowed)
+        }
+        check(target.overrideState != null && target.overrideState != 0) {
+            context.getString(R.string.root_component_already_default)
+        }
+
+        lastOperation =
+            "at=${System.currentTimeMillis()} component=${target.id} requested=default status=started"
+        val script = ComponentStatePolicy.defaultStateCommand(
+            target.component.packageName,
+            target.component.className,
+            user
+        )
+        val result = try {
+            ComponentRootCommand.run(script)
+        } catch (failure: Exception) {
+            lastOperation += " error=${failure.javaClass.name}"
+            Log.e(TAG, "Root component restore failed for ${target.id}", failure)
+            throw IllegalStateException(context.getString(R.string.root_command_incomplete), failure)
+        }
+
+        var observed: Int? = null
+        repeat(5) {
+            if (observed != 0) {
+                observed = runCatching {
+                    pm.getComponentEnabledSetting(target.component)
+                }.getOrNull()
+                if (observed != 0) delay(100)
+            }
+        }
+        lastOperation =
+            "at=${System.currentTimeMillis()} component=${target.id} requested=default " +
+                "exit=${result.exitCode} timeout=${result.timedOut} observed=$observed\n${result.output}"
+        Log.i(TAG, "COMPONENT_RESTORE ${target.id} exit=${result.exitCode} observed=$observed")
+        check(!result.timedOut && result.exitCode == 0 && observed == 0) {
+            context.getString(R.string.root_operation_unconfirmed, result.output)
+        }
+        return context.getString(R.string.root_component_restored, fresh.label)
+    }
+
     private fun read(
         kind: CleanupKind,
         discovered: DiscoveredComponent,

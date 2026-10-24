@@ -1,15 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reset_default_title">恢复默认配置</string>
-    <string name="reset_default_message">将清空以下所有个人配置，模块回到「不过滤、不排序、不改可见性」的初始状态。已同步到系统的规则会一并失效。</string>
-    <string name="reset_default_item_rules">菜单候选规则 · %1$d 条</string>
-    <string name="reset_default_item_priority">显示顺序 · %1$d 项</string>
-    <string name="reset_default_item_typed">开型与域名规则 · %1$d 条</string>
-    <string name="reset_default_item_text_menu">文本菜单顺序 · %1$d 项</string>
-    <string name="reset_default_item_visibility">隐藏应用与可见性 · %1$d 项</string>
-    <string name="reset_default_item_components">重新启用被禁用的组件 · %1$d 个</string>
+    <string name="reset_default_pick">每一项独立恢复、互不影响；组件恢复到系统默认状态，并非强制开启。</string>
+    <string name="reset_section_rules">菜单候选规则</string>
+    <string name="reset_section_priority">显示顺序</string>
+    <string name="reset_section_open_types">开型规则</string>
+    <string name="reset_section_browser_hosts">域名规则</string>
+    <string name="reset_section_text_menu">文本菜单顺序</string>
+    <string name="reset_section_visibility">隐藏应用与可见性</string>
+    <string name="reset_section_components">组件（Root 管理）</string>
+    <string name="reset_kind_count">%1$s · %2$d 个</string>
+    <string name="reset_section_item_count">%1$s · %2$d 项</string>
+    <string name="reset_default_components_hint">仅恢复由本应用禁用的组件；恢复会清除启用状态覆盖，回到系统默认状态。</string>
+    <string name="reset_default_components_none">没有由本应用禁用的组件。</string>
+    <string name="reset_default_restore_one">恢复</string>
+    <string name="reset_default_confirm_yes">确认</string>
+    <string name="reset_default_all">全部恢复</string>
     <string name="reset_default_keep_diagnostic">诊断模式会保留，不影响本次恢复。</string>
-    <string name="reset_default_confirm">确认恢复</string>
-    <string name="reset_default_done">已恢复默认配置</string>
-    <string name="reset_default_component_failed">配置已恢复，但 %1$d 个组件重新启用失败（需要 Root）</string>
+    <string name="reset_done_section">%1$s已恢复默认（%2$d 项已清空）</string>
+    <string name="reset_done_menu_config">全部菜单与排序配置已恢复默认（%1$d 项）</string>
+    <string name="reset_kind_submitted">正在恢复%1$s默认状态（%2$d 个）</string>
+    <string name="logs_title">运行日志</string>
+    <string name="logs_tab_module">模块日志</string>
+    <string name="logs_tab_app">应用日志</string>
+    <string name="logs_refresh">刷新</string>
+    <string name="logs_copy">复制全部</string>
+    <string name="logs_clear">清空</string>
+    <string name="logs_empty">暂无日志。</string>
+    <string name="logs_loading">正在读取…</string>
+    <string name="logs_root_required">读取模块日志需要 Root 授权。</string>
+    <string name="logs_read_failed">读取失败（exit=%1$d）。</string>
 </resources>

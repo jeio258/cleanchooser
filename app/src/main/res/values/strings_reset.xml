@@ -1,15 +1,33 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reset_default_title">Restore defaults</string>
-    <string name="reset_default_message">Clears every personal setting below and returns the module to its pass-through state: no filtering, no ordering, no visibility overrides. Rules already synced to the system stop applying.</string>
-    <string name="reset_default_item_rules">Menu candidate rules · %1$d</string>
-    <string name="reset_default_item_priority">Display order · %1$d</string>
-    <string name="reset_default_item_typed">Open type and host rules · %1$d</string>
-    <string name="reset_default_item_text_menu">Text menu order · %1$d</string>
-    <string name="reset_default_item_visibility">Hidden apps and visibility · %1$d</string>
-    <string name="reset_default_item_components">Re-enable disabled components · %1$d</string>
+    <string name="reset_default_pick">Every section restores independently. Components return to their system default state instead of being forced on.</string>
+    <string name="reset_section_rules">Menu candidate rules</string>
+    <string name="reset_section_priority">Display order</string>
+    <string name="reset_section_open_types">Open type rules</string>
+    <string name="reset_section_browser_hosts">Host rules</string>
+    <string name="reset_section_text_menu">Text menu order</string>
+    <string name="reset_section_visibility">Hidden apps and visibility</string>
+    <string name="reset_section_components">Components (root managed)</string>
+    <string name="reset_kind_count">%1$s · %2$d</string>
+    <string name="reset_section_item_count">%1$s · %2$d</string>
+    <string name="reset_default_components_hint">Only components disabled by this app are listed. Restoring clears the enabled-state override and returns them to the system default.</string>
+    <string name="reset_default_components_none">No components disabled by this app.</string>
+    <string name="reset_default_restore_one">Restore</string>
+    <string name="reset_default_confirm_yes">Confirm</string>
+    <string name="reset_default_all">Restore all</string>
     <string name="reset_default_keep_diagnostic">Diagnostic mode is kept and unaffected.</string>
-    <string name="reset_default_confirm">Restore</string>
-    <string name="reset_default_done">Defaults restored</string>
-    <string name="reset_default_component_failed">Config restored, but %1$d components could not be re-enabled (root required)</string>
+    <string name="reset_done_section">%1$s restored (%2$d entries cleared)</string>
+    <string name="reset_done_menu_config">All menu and ordering config restored (%1$d entries)</string>
+    <string name="reset_kind_submitted">Restoring %1$s to default (%2$d)</string>
+    <string name="logs_title">Runtime log</string>
+    <string name="logs_tab_module">Module log</string>
+    <string name="logs_tab_app">App log</string>
+    <string name="logs_refresh">Refresh</string>
+    <string name="logs_copy">Copy all</string>
+    <string name="logs_clear">Clear</string>
+    <string name="logs_empty">No log entries.</string>
+    <string name="logs_loading">Loading…</string>
+    <string name="logs_root_required">Root access is required to read the module log.</string>
+    <string name="logs_read_failed">Read failed (exit=%1$d).</string>
 </resources>

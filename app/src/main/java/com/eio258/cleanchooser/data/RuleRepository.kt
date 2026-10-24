@@ -325,13 +325,72 @@ class RuleRepository(context: Context) {
         mutableRevision.value++
     }
 
-    /**
-     * Safety net for a misconfiguration: clears every user setting and returns the module to a
-     * pass-through state (no filtering, no ordering, no visibility overrides, no component
-     * protection). Diagnostic mode is deliberately kept so the user can still collect a log
-     * bundle while investigating what went wrong.
-     */
-    @Synchronized fun resetAll() {
+    // ---- Restore-to-default: one method per configuration section, plus the combined reset ----
+    // Each section restores independently, so a mistake in one place never forces the user to
+    // rebuild the rest of the configuration. Diagnostic mode is never touched.
+
+    @Synchronized fun resetRules() {
+        if (mutableRules.value.isEmpty()) return
+        mutableRules.value = emptySet()
+        prefs.edit().putStringSet(KEY_RULES, emptySet()).apply()
+        mutableRevision.value++
+    }
+
+    @Synchronized fun resetPriorities() {
+        if (mutablePriorities.value == PriorityConfig()) return
+        mutablePriorities.value = PriorityConfig()
+        prefs.edit().putString(KEY_PRIORITIES, encodePriorities(PriorityConfig())).apply()
+        mutableRevision.value++
+    }
+
+    @Synchronized fun resetOpenTypes() {
+        if (mutableOpenTypes.value == OpenTypeConfig()) return
+        mutableOpenTypes.value = OpenTypeConfig()
+        prefs.edit()
+            .putString(KEY_OPEN_TYPES, json.encodeToString(OpenTypeConfig.serializer(), OpenTypeConfig()))
+            .apply()
+        mutableRevision.value++
+    }
+
+    @Synchronized fun resetBrowserHosts() {
+        if (mutableBrowserLinks.value == BrowserLinkConfig()) return
+        mutableBrowserLinks.value = BrowserLinkConfig()
+        prefs.edit()
+            .putString(KEY_BROWSER_LINKS, json.encodeToString(BrowserLinkConfig.serializer(), BrowserLinkConfig()))
+            .apply()
+        mutableRevision.value++
+    }
+
+    @Synchronized fun resetTextMenuOrder() {
+        if (mutableTextMenuOrder.value.isEmpty()) return
+        mutableTextMenuOrder.value = emptyList()
+        prefs.edit().putString(
+            KEY_TEXT_MENU_ORDER,
+            json.encodeToString(
+                kotlinx.serialization.builtins.ListSerializer(String.serializer()),
+                emptyList<String>()
+            )
+        ).apply()
+        mutableRevision.value++
+    }
+
+    @Synchronized fun resetVisibility() {
+        val cleared = mutableHiddenFromApps.value.isEmpty() &&
+            mutableVisibilityScopes.value.isEmpty() &&
+            mutableVisibilityFullPackages.value.isEmpty()
+        if (cleared) return
+        mutableHiddenFromApps.value = emptySet()
+        mutableVisibilityScopes.value = emptySet()
+        mutableVisibilityFullPackages.value = emptyMap()
+        prefs.edit()
+            .putStringSet(KEY_HIDDEN_FROM_APPS, emptySet())
+            .putStringSet(KEY_VISIBILITY_SCOPES, emptySet())
+            .apply()
+        mutableRevision.value++
+    }
+
+    /** All six menu sections above in one SharedPreferences transaction and one revision. */
+    @Synchronized fun resetMenuConfig() {
         val diagnostic = mutableDiagnostic.value
         prefs.edit()
             .putStringSet(KEY_RULES, emptySet())

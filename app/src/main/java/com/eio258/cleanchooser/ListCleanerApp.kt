@@ -8,6 +8,7 @@ import com.eio258.cleanchooser.data.IntentCatalog
 import com.eio258.cleanchooser.data.PersistentComponentStore
 import com.eio258.cleanchooser.data.RuleRepository
 import com.eio258.cleanchooser.domain.DisplayMode
+import com.eio258.cleanchooser.ui.MainViewModel
 import com.eio258.cleanchooser.domain.ModuleConfig
 import com.eio258.cleanchooser.domain.PriorityConfig
 import com.eio258.cleanchooser.domain.RuntimeProtocol
@@ -77,6 +78,7 @@ class ListCleanerApp : Application(), XposedServiceHelper.OnServiceListener {
 
     override fun onCreate() {
         super.onCreate()
+        installCrashCapture()
         syncStatus.value = getString(R.string.runtime_waiting_connection)
         runtime.value = RuntimeStatus(message = getString(R.string.runtime_waiting_verify))
         rules = RuleRepository(this)
@@ -89,6 +91,28 @@ class ListCleanerApp : Application(), XposedServiceHelper.OnServiceListener {
         }
         applicationScope.launch {
             combine(rules.revision, serviceSession) { _, _ -> Unit }.collect { synchronize() }
+        }
+    }
+
+    /**
+     * Uncaught exceptions in this process go to a bounded local file shown on the log page.
+     * Without this an app-side crash is invisible: logcat is not accessible to the user here.
+     */
+    private fun installCrashCapture() {
+        val previous = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            runCatching {
+                val file = java.io.File(filesDir, MainViewModel.APP_LOG_FILE)
+                val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
+                    .format(java.util.Date())
+                file.appendText("$stamp ${thread.name}\n${android.util.Log.getStackTraceString(throwable)}\n\n")
+                val max = 64 * 1024
+                if (file.length() > max) {
+                    val text = file.readText()
+                    file.writeText(text.substring(text.length - max))
+                }
+            }
+            previous?.uncaughtException(thread, throwable)
         }
     }
 

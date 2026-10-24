@@ -47,4 +47,9 @@
     <string name="root_disabled_summary">Disabled %1$d/%2$d · %3$s</string>
     <string name="root_display_only_count">%1$d entries are display-only and excluded from batch operations</string>
     <string name="root_no_components">No matching components</string>
+    <string name="root_requesting_restore">Requesting restore to system default…</string>
+    <string name="root_progress_restore">Restoring %1$d/%2$d: %3$s</string>
+    <string name="root_batch_restored">Restored %1$d components to system default</string>
+    <string name="root_component_restored">Restored "%1$s" to system default</string>
+    <string name="root_component_already_default">Component is already at system default</string>
 </resources>

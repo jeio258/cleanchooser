@@ -26,4 +26,15 @@ public final class ComponentStatePolicy {
     public static String command(String pkg, String cls, int user, boolean enable) {
         return "test \"$(id -u)\" = 0 || exit 77\nexec " + commandLine(pkg, cls, user, enable);
     }
+
+    /**
+     * Clears the enabled-state override so the manifest/system-declared state applies again.
+     * Unlike {@code pm enable} this never forces a component on: components that shipped disabled
+     * stay disabled, which is exactly what "restore the original configuration" means.
+     */
+    public static String defaultStateCommand(String pkg, String cls, int user) {
+        if (!valid(pkg, cls, user)) throw new IllegalArgumentException("Invalid component identity");
+        return "test \"$(id -u)\" = 0 || exit 77\nexec cmd package default-state --user " + user +
+            " '" + pkg + "/" + cls + "'";
+    }
 }

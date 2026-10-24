@@ -4,6 +4,7 @@ import android.util.Log
 import com.eio258.cleanchooser.ListCleanerApp
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.ComponentRootCommand
+import com.eio258.cleanchooser.data.PersistentComponentState
 import com.eio258.cleanchooser.data.PersistentComponentStore
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.data.RootComponentCatalog
@@ -41,6 +42,10 @@ internal class RootComponentsController(
     private val mutableRootNotice = MutableStateFlow<String?>(null)
     val rootNotice: StateFlow<String?> = mutableRootNotice
 
+    private val mutableDisabledKeys = MutableStateFlow(persistentComponents.disabledKeys())
+    /** Components this app disabled; the only ones a restore-to-default may touch. */
+    val disabledKeys: StateFlow<Set<String>> = mutableDisabledKeys
+
     val lastOperation: String get() = catalog.lastOperation
 
     fun dismissRootNotice() { mutableRootNotice.value = null }
@@ -67,7 +72,7 @@ internal class RootComponentsController(
                     // desired state remains authoritative if the Xposed service was temporarily down.
                     persistentComponents.syncRemote()
                     app.synchronize()
-                    catalog.scan()
+                    catalog.scan().also { mutableDisabledKeys.value = persistentComponents.disabledKeys() }
                 }
             } catch (cancelled: CancellationException) {
                 throw cancelled
@@ -145,6 +150,72 @@ internal class RootComponentsController(
         }
     }
 
+    /**
+     * Restores components to their system default state. Only components this app disabled are
+     * touched: the desired-state record is cleared and mirrored after Android confirms the
+     * override is gone, so the guard and discovery filter stop protecting them immediately.
+     */
+    fun restore(visibleTargets: List<RootComponent>) {
+        if (mutableBusy.value) return
+        val ours = persistentComponents.disabledKeys()
+        val targets = visibleTargets.filter {
+            it.blocked == null && it.enabled == false &&
+                PersistentComponentState.key(it.user, it.component) in ours
+        }.distinctBy { "${it.user}|${it.component.flattenToString()}" }
+        if (targets.isEmpty()) return
+        mutableRootNotice.value = null
+        mutableBusy.value = true
+        mutableMessage.value = app.getString(R.string.root_requesting_restore)
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                val completedTargets = mutableListOf<RootComponent>()
+                try {
+                    catalog.requireRoot()
+                    for (target in targets) {
+                        coroutineContext.ensureActive()
+                        mutableMessage.value = app.getString(
+                            R.string.root_progress_restore,
+                            completedTargets.size + 1,
+                            targets.size,
+                            target.label
+                        )
+                        withContext(NonCancellable) { catalog.restore(target) }
+                        persistentComponents.clear(
+                            listOf(PersistentComponentState.key(target.user, target.component))
+                        )
+                        completedTargets += target
+                    }
+                    mutableMessage.value = app.getString(
+                        R.string.root_batch_restored,
+                        completedTargets.size
+                    )
+                } catch (cancelled: CancellationException) {
+                    Log.i(TAG, "Root component restore cancelled after ${completedTargets.size}/${targets.size}")
+                    throw cancelled
+                } catch (failure: ComponentRootCommand.RootAccessException) {
+                    val message = rootAccessMessage(failure)
+                    mutableMessage.value = message
+                    mutableRootNotice.value = message
+                } catch (failure: Exception) {
+                    Log.e(TAG, "Root component restore failed after ${completedTargets.size}/${targets.size}", failure)
+                    mutableMessage.value = app.getString(
+                        R.string.root_batch_stopped,
+                        completedTargets.size,
+                        targets.size,
+                        app.getString(R.string.root_operation_not_allowed)
+                    )
+                } finally {
+                    mutableDisabledKeys.value = persistentComponents.disabledKeys()
+                    if (completedTargets.isNotEmpty()) {
+                        withContext(NonCancellable) { app.synchronize() }
+                        refreshAfterMutation(completedTargets)
+                    }
+                    mutableBusy.value = false
+                }
+            }
+        }
+    }
+
     fun invert(visibleTargets: List<RootComponent>) {
         if (mutableBusy.value) return
         val targets = visibleTargets.filter {
@@ -200,6 +271,7 @@ internal class RootComponentsController(
     }
 
     private fun refreshAfterMutation(targets: List<RootComponent>) {
+        mutableDisabledKeys.value = persistentComponents.disabledKeys()
         runCatching { catalog.refreshItems(mutableScan.value, targets) }
             .onSuccess { mutableScan.value = it }
             .onFailure { failure ->

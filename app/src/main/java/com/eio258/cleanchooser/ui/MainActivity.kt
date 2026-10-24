@@ -62,6 +62,7 @@ class MainActivity : ComponentActivity() {
         val exportMessage by vm.exportMessage.collectAsStateWithLifecycle()
         val resetMessage by vm.resetMessage.collectAsStateWithLifecycle()
         val detailTarget = vm.detailTarget
+        val logsOpen = vm.logsOpen
 
         LaunchedEffect(exportMessage) {
             exportMessage?.let { toast(it, true); vm.clearExportMessage() }
@@ -106,7 +107,8 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        BackHandler(enabled = detailTarget != null) { vm.closeDetail() }
+        BackHandler(enabled = logsOpen) { vm.closeLogs() }
+        BackHandler(enabled = detailTarget != null && !logsOpen) { vm.closeDetail() }
         BackHandler(enabled = detailTarget == null && state.destination != Destination.HOME) {
             vm.setDestination(Destination.HOME)
         }
@@ -163,7 +165,9 @@ class MainActivity : ComponentActivity() {
 
         Scaffold(
             topBar = {
-                if (detailTarget == null) {
+                if (logsOpen) {
+                    DetailTopBar(title = stringResource(R.string.logs_title), onBack = vm::closeLogs)
+                } else if (detailTarget == null) {
                     MainToolbar(
                         destination = state.destination,
                         query = state.query,
@@ -189,7 +193,7 @@ class MainActivity : ComponentActivity() {
                 }
             },
             bottomBar = {
-                if (detailTarget == null) {
+                if (detailTarget == null && !logsOpen) {
                     NavigationBar {
                         Destination.entries.forEach { dest ->
                             NavigationBarItem(
@@ -212,6 +216,7 @@ class MainActivity : ComponentActivity() {
         ) { padding ->
             Box(Modifier.padding(padding).fillMaxSize()) {
                 when {
+                    logsOpen -> LogScreen(vm)
                     detailTarget != null -> AppDetailScreen(detailTarget, state, vm)
                     state.destination == Destination.HOME -> HomeScreen(
                         state,

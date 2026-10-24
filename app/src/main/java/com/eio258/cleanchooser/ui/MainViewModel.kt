@@ -46,6 +46,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
+import com.eio258.cleanchooser.data.ComponentRootCommand
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -125,6 +126,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun dismissComponentRootNotice() = rootComponents.dismissRootNotice()
     fun refreshComponents() = rootComponents.refresh()
+
     fun changeComponent(target: RootComponent, enable: Boolean) = rootComponents.change(target, enable)
     fun changeComponents(targets: List<RootComponent>, enable: Boolean) = rootComponents.change(targets, enable)
     fun invertComponents(targets: List<RootComponent>) = rootComponents.invert(targets)
@@ -589,17 +591,163 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         return normalized
     }
 
-    /**
-     * Safety net: wipes every user configuration in one transaction and syncs the empty config to
-     * the hook, so a misconfiguration can always be undone without reinstalling the module.
-     */
-    fun resetAllConfig() {
-        app.rules.resetAll()
+    // ---- Restore-to-default: every configuration section restores independently ----
+
+    /** Components this app disabled; a restore may only touch these. */
+    val disabledComponentKeys: StateFlow<Set<String>> = rootComponents.disabledKeys
+
+    private fun restoreSection(message: () -> String, action: () -> Unit) {
+        val result = message()
+        action()
         viewModelScope.launch {
             runCatching { app.synchronize() }
-            mutableResetMessage.value = app.getString(R.string.reset_default_done)
+            mutableResetMessage.value = result
             refresh()
         }
+    }
+
+    private fun resetSummary(): Int = app.rules.rules.value.size +
+        app.rules.priorities.value.apps.values.sumOf { it.size } +
+        app.rules.openTypes.value.rules.values.sumOf { it.size } +
+        app.rules.browserLinks.value.rules.values.sumOf { it.size } +
+        app.rules.textMenuOrder.value.size +
+        app.rules.hiddenFromApps.value.size +
+        app.rules.visibilityScopes.value.size
+
+    fun resetRules() = restoreSection(
+        message = { app.getString(R.string.reset_done_section, app.getString(R.string.reset_section_rules), app.rules.rules.value.size) },
+        action = { app.rules.resetRules() }
+    )
+
+    fun resetPriorities() = restoreSection(
+        message = { app.getString(R.string.reset_done_section, app.getString(R.string.reset_section_priority), app.rules.priorities.value.apps.values.sumOf { it.size }) },
+        action = { app.rules.resetPriorities() }
+    )
+
+    fun resetOpenTypes() = restoreSection(
+        message = { app.getString(R.string.reset_done_section, app.getString(R.string.reset_section_open_types), app.rules.openTypes.value.rules.values.sumOf { it.size }) },
+        action = { app.rules.resetOpenTypes() }
+    )
+
+    fun resetBrowserHosts() = restoreSection(
+        message = { app.getString(R.string.reset_done_section, app.getString(R.string.reset_section_browser_hosts), app.rules.browserLinks.value.rules.values.sumOf { it.size }) },
+        action = { app.rules.resetBrowserHosts() }
+    )
+
+    fun resetTextMenuOrder() = restoreSection(
+        message = { app.getString(R.string.reset_done_section, app.getString(R.string.reset_section_text_menu), app.rules.textMenuOrder.value.size) },
+        action = { app.rules.resetTextMenuOrder() }
+    )
+
+    fun resetVisibility() = restoreSection(
+        message = {
+            app.getString(
+                R.string.reset_done_section,
+                app.getString(R.string.reset_section_visibility),
+                app.rules.hiddenFromApps.value.size + app.rules.visibilityScopes.value.size
+            )
+        },
+        action = { app.rules.resetVisibility() }
+    )
+
+    fun resetMenuConfig() {
+        val cleared = resetSummary()
+        app.rules.resetMenuConfig()
+        viewModelScope.launch {
+            runCatching { app.synchronize() }
+            mutableResetMessage.value = app.getString(R.string.reset_done_menu_config, cleared)
+            refresh()
+        }
+    }
+
+    /** Restores every component of one kind (tile / shortcut / widget / launcher icon) to default. */
+    fun restoreComponentsByKind(kind: CleanupKind) {
+        val targets = componentScan.value.items.filter {
+            it.kind == kind && it.enabled == false && it.blocked == null
+        }
+        if (targets.isEmpty()) return
+        rootComponents.restore(targets)
+        mutableResetMessage.value = app.getString(
+            R.string.reset_kind_submitted,
+            app.getString(kind.titleRes()),
+            targets.size
+        )
+    }
+
+    fun restoreAllComponents() {
+        val targets = componentScan.value.items.filter { it.enabled == false && it.blocked == null }
+        if (targets.isEmpty()) return
+        rootComponents.restore(targets)
+        mutableResetMessage.value = app.getString(
+            R.string.reset_kind_submitted,
+            app.getString(R.string.reset_section_components),
+            targets.size
+        )
+    }
+
+    // ---- Runtime logs: the hit counters on the home page need a visible trail ----
+
+    var logsOpen by mutableStateOf(false)
+        private set
+
+    private val mutableModuleLog = MutableStateFlow<List<String>>(emptyList())
+    val moduleLog: StateFlow<List<String>> = mutableModuleLog
+
+    private val mutableAppLog = MutableStateFlow<List<String>>(emptyList())
+    val appLog: StateFlow<List<String>> = mutableAppLog
+
+    private val mutableLogsLoading = MutableStateFlow(false)
+    val logsLoading: StateFlow<Boolean> = mutableLogsLoading
+
+    fun openLogs() {
+        logsOpen = true
+        refreshLogs()
+    }
+
+    fun closeLogs() { logsOpen = false }
+
+    fun refreshLogs() {
+        if (mutableLogsLoading.value) return
+        mutableLogsLoading.value = true
+        viewModelScope.launch {
+            val module = withContext(Dispatchers.IO) { readModuleLog() }
+            mutableModuleLog.value = module
+            mutableAppLog.value = readAppLog()
+            mutableLogsLoading.value = false
+        }
+    }
+
+    fun clearAppLog() {
+        viewModelScope.launch(Dispatchers.IO) {
+            app.filesDir.resolve(APP_LOG_FILE).delete()
+        }
+        mutableAppLog.value = emptyList()
+    }
+
+    /**
+     * Dumps the module's own diagnostic tags from the global log buffer via root. Everything the
+     * hooks did (queries, visibility, ordering, config pushes, re-enable blocks) lands there.
+     */
+    private fun readModuleLog(): List<String> = try {
+        ComponentRootCommand.requireRoot()
+        val result = ComponentRootCommand.run(
+            "exec logcat -d -v time -t 400 -s " + MODULE_LOG_TAGS.joinToString(" ") { "$it:I" }
+        )
+        if (result.exitCode == 0) {
+            result.output.lines().filter { it.isNotBlank() }.takeLast(400)
+        } else {
+            listOf(app.getString(R.string.logs_read_failed, result.exitCode))
+        }
+    } catch (failure: ComponentRootCommand.RootAccessException) {
+        listOf(app.getString(R.string.logs_root_required))
+    } catch (failure: Exception) {
+        listOf(app.getString(R.string.logs_read_failed, -1))
+    }
+
+    private fun readAppLog(): List<String> {
+        val file = app.filesDir.resolve(APP_LOG_FILE)
+        if (!file.exists()) return emptyList()
+        return runCatching { file.readLines() }.getOrDefault(emptyList()).takeLast(400)
     }
 
     fun toggle(rule: ComponentRule) { if (canEdit()) app.rules.toggle(rule) }
@@ -1006,6 +1154,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val MAX_BACKUP_CHARS = RuleRepository.MAX_BACKUP_CHARS
+        internal const val APP_LOG_FILE = "app_runtime_log.txt"
+        internal val MODULE_LOG_TAGS = listOf(
+            "ListCleaner.Diagnostic", "ListCleaner.ComponentGuard",
+            "ListCleaner.DiscoveryFilter", "ListCleaner.Root", "ListCleaner.ComponentStore"
+        )
         private const val TAG = "ListCleaner.ViewModel"
     }
 }

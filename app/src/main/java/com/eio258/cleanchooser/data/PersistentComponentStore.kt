@@ -76,6 +76,24 @@ class PersistentComponentStore(private val app: ListCleanerApp) {
         return syncRemote(next)
     }
 
+    /**
+     * Drops the stored "disabled" intent for the given components and mirrors the remainder.
+     * Called after a restore-to-default so the guard and discovery filter stop protecting
+     * components the user no longer wants disabled.
+     */
+    @Synchronized
+    fun clear(keys: Collection<String>): Boolean {
+        if (keys.isEmpty()) return true
+        val current = disabledKeys()
+        val next = current - keys.toSet()
+        if (next == current) return true
+        if (!prefs.edit().putStringSet(PersistentComponentState.LOCAL_KEY, next).commit()) {
+            Log.e(TAG, "Failed to clear persisted component state")
+            return false
+        }
+        return syncRemote(next)
+    }
+
     @Synchronized
     fun syncRemote(): Boolean = syncRemote(disabledKeys())
 
