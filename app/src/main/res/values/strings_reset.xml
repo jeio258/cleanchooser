@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reset_default_title">Restore defaults</string>
-    <string name="reset_default_pick">Every section restores independently. Components return to their system default state instead of being forced on.</string>
+    <string name="reset_default_pick">Every section restores independently. Components roll back to the state recorded before this app touched them.</string>
     <string name="reset_section_rules">Menu candidate rules</string>
     <string name="reset_section_priority">Display order</string>
     <string name="reset_section_open_types">Open type rules</string>

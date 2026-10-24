@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="reset_default_title">恢复默认配置</string>
-    <string name="reset_default_pick">每一项独立恢复、互不影响；组件恢复到系统默认状态，并非强制开启。</string>
+    <string name="reset_default_pick">每一项独立恢复、互不影响；组件恢复到本应用修改前的状态，并非强制开启。</string>
     <string name="reset_section_rules">菜单候选规则</string>
     <string name="reset_section_priority">显示顺序</string>
     <string name="reset_section_open_types">开型规则</string>
