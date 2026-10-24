@@ -60,10 +60,14 @@ class MainActivity : ComponentActivity() {
         var restartPromptDismissed by rememberSaveable { mutableStateOf(false) }
         val collectingDiagnostics by vm.collectingDiagnostics.collectAsStateWithLifecycle()
         val exportMessage by vm.exportMessage.collectAsStateWithLifecycle()
+        val resetMessage by vm.resetMessage.collectAsStateWithLifecycle()
         val detailTarget = vm.detailTarget
 
         LaunchedEffect(exportMessage) {
             exportMessage?.let { toast(it, true); vm.clearExportMessage() }
+        }
+        LaunchedEffect(resetMessage) {
+            resetMessage?.let { toast(it, true); vm.clearResetMessage() }
         }
         LaunchedEffect(state.module.outdated) {
             if (!state.module.outdated) restartPromptDismissed = false

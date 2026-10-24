@@ -10,7 +10,10 @@
     <string name="home_priority_title">Display order</string>
     <string name="home_priority_summary">%1$d prioritized</string>
     <string name="home_components_title">Tiles / shortcuts / widgets</string>
-    <string name="home_components_summary">%1$d disabled</string>
+    <string name="home_components_summary_kinds">Tiles %1$d · Shortcuts %2$d · Widgets %3$d</string>
+    <string name="home_components_summary_kinds_launcher">Tiles %1$d · Shortcuts %2$d · Widgets %3$d · Icons %4$d</string>
+    <string name="home_components_summary_none">Nothing disabled</string>
+    <string name="home_reset_default">Restore defaults</string>
     <string name="home_components_unscanned">—</string>
 
 

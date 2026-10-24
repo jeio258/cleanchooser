@@ -78,6 +78,13 @@ class ListCleanerModule : XposedModule() {
     @Volatile
     private var menuProbe: MenuSnapshotProbe? = null
 
+    private val packageManagerProxy: Any? by lazy {
+        runCatching {
+            Class.forName("android.app.AppGlobals").getMethod("getPackageManager").invoke(null)
+        }.getOrNull()
+    }
+    private val callerPackageCache = java.util.concurrent.ConcurrentHashMap<Int, List<String>>()
+
     private var snapshot = RuntimeRuleSnapshot(
         configured = emptySet(),
         displayMode = DisplayMode.HIDE_SELECTED,
@@ -1273,7 +1280,8 @@ class ListCleanerModule : XposedModule() {
                     "scheme=${intent.data?.scheme} " +
                     "ext=${safeExtension(intent.data?.lastPathSegment ?: intent.data?.path)} " +
                     "component=${intent.component?.flattenToShortString()} package=${intent.`package`} " +
-                    "callerUid=$callerUid result=${original?.javaClass?.name} " +
+                    "callerUid=$callerUid callerPackages=${callerPackages(callerUid)} " +
+                    "result=${original?.javaClass?.name} " +
                     "rules=${snapshot.configured.size} mode=${snapshot.displayMode}"
             )
         }
@@ -1353,6 +1361,23 @@ class ListCleanerModule : XposedModule() {
         return runCatching { extracted.rebuild(replacement) }.getOrElse {
             Log.e(TAG, "Failed to rebuild ${original?.javaClass?.name}; keeping original", it)
             original
+        }
+    }
+
+    /**
+     * Resolves the calling UID to package names for the diagnostic trail. PackageManager is
+     * reached through AppGlobals (never through the hooked query methods, so no re-entry), and
+     * failures degrade to an empty list because diagnostics must never break a query.
+     */
+    private fun callerPackages(uid: Int): List<String> {
+        if (uid <= 0) return emptyList()
+        return callerPackageCache.getOrPut(uid) {
+            val pm = packageManagerProxy ?: return@getOrPut emptyList()
+            runCatching {
+                @Suppress("UNCHECKED_CAST")
+                (pm.javaClass.getMethod("getPackagesForUid", Int::class.javaPrimitiveType)
+                    .invoke(pm, uid) as? Array<String>)?.toList()
+            }.getOrNull().orEmpty()
         }
     }
 

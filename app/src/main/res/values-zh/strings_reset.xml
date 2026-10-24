@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reset_default_title">恢复默认配置</string>
+    <string name="reset_default_message">将清空以下所有个人配置，模块回到「不过滤、不排序、不改可见性」的初始状态。已同步到系统的规则会一并失效。</string>
+    <string name="reset_default_item_rules">菜单候选规则 · %1$d 条</string>
+    <string name="reset_default_item_priority">显示顺序 · %1$d 项</string>
+    <string name="reset_default_item_typed">开型与域名规则 · %1$d 条</string>
+    <string name="reset_default_item_text_menu">文本菜单顺序 · %1$d 项</string>
+    <string name="reset_default_item_visibility">隐藏应用与可见性 · %1$d 项</string>
+    <string name="reset_default_item_components">重新启用被禁用的组件 · %1$d 个</string>
+    <string name="reset_default_keep_diagnostic">诊断模式会保留，不影响本次恢复。</string>
+    <string name="reset_default_confirm">确认恢复</string>
+    <string name="reset_default_done">已恢复默认配置</string>
+    <string name="reset_default_component_failed">配置已恢复，但 %1$d 个组件重新启用失败（需要 Root）</string>
+</resources>

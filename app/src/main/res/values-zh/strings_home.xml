@@ -10,7 +10,10 @@
     <string name="home_priority_title">显示顺序</string>
     <string name="home_priority_summary">已优先 %1$d 个</string>
     <string name="home_components_title">磁贴 / 快捷方式 / 小部件</string>
-    <string name="home_components_summary">已禁用 %1$d 个</string>
+    <string name="home_components_summary_kinds">磁贴 %1$d · 快捷方式 %2$d · 小部件 %3$d</string>
+    <string name="home_components_summary_kinds_launcher">磁贴 %1$d · 快捷方式 %2$d · 小部件 %3$d · 图标 %4$d</string>
+    <string name="home_components_summary_none">未禁用任何组件</string>
+    <string name="home_reset_default">恢复默认配置</string>
     <string name="home_components_unscanned">—</string>
 
 

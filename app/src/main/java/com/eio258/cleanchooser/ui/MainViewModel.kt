@@ -24,6 +24,7 @@ import com.eio258.cleanchooser.data.RuleRepository
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.ComponentRule
 import com.eio258.cleanchooser.domain.AppTypeFilter
+import com.eio258.cleanchooser.domain.VisibilityScope
 import com.eio258.cleanchooser.domain.BrowserLinkConfig
 import com.eio258.cleanchooser.domain.CustomOpenDefinition
 import com.eio258.cleanchooser.domain.DisplayMode
@@ -333,6 +334,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearExportMessage() { mutableExportMessage.value = null }
 
+    private val mutableResetMessage = MutableStateFlow<String?>(null)
+    val resetMessage: StateFlow<String?> = mutableResetMessage
+
+    fun clearResetMessage() { mutableResetMessage.value = null }
+
     fun exportDiagnostics(uri: Uri) {
         if (mutableCollectingDiagnostics.value) return
         mutableCollectingDiagnostics.value = true
@@ -581,6 +587,19 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (current.hosts.size >= BrowserLinkConfig.MAX_HOSTS) return null
         app.rules.setBrowserHosts(current.hosts + normalized)
         return normalized
+    }
+
+    /**
+     * Safety net: wipes every user configuration in one transaction and syncs the empty config to
+     * the hook, so a misconfiguration can always be undone without reinstalling the module.
+     */
+    fun resetAllConfig() {
+        app.rules.resetAll()
+        viewModelScope.launch {
+            runCatching { app.synchronize() }
+            mutableResetMessage.value = app.getString(R.string.reset_default_done)
+            refresh()
+        }
     }
 
     fun toggle(rule: ComponentRule) { if (canEdit()) app.rules.toggle(rule) }
@@ -886,6 +905,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     val textMenuOrder: StateFlow<List<String>> = app.rules.textMenuOrder
+    val visibilityScopes: StateFlow<Set<VisibilityScope>> = app.rules.visibilityScopes
 
 
     fun setTextMenuOrder(order: List<String>) {

@@ -23,9 +23,16 @@ import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.VisibilityOff
+import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Widgets
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -49,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eio258.cleanchooser.BuildConfig
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.domain.IntentKind
 
 /**
@@ -66,6 +74,8 @@ fun HomeScreen(
     collectingDiagnostics: Boolean,
 ) {
     val scan by vm.componentScan.collectAsStateWithLifecycle()
+    val textMenuOrder by vm.textMenuOrder.collectAsStateWithLifecycle()
+    val visibilityScopes by vm.visibilityScopes.collectAsStateWithLifecycle()
     val channel = IntentKind.SHARE
     val ranked = state.priorities.apps[channel].orEmpty()
     val preview = remember(state.groups, state.selected) {
@@ -78,7 +88,11 @@ fun HomeScreen(
     }
     val hiddenApps = state.selected.map { it.packageName }.distinct().size
     val disabled = scan.items.filter { it.enabled == false && it.blocked == null }
+    val kindCounts = remember(disabled) {
+        CleanupKind.entries.associateWith { kind -> disabled.count { it.kind == kind } }
+    }
     var expanded by rememberSaveable { mutableStateOf<String?>(null) }
+    var resetSheetOpen by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (scan.items.isEmpty()) vm.refreshComponents() }
 
@@ -186,8 +200,23 @@ fun HomeScreen(
         TaskCard(
             icon = Icons.Rounded.Widgets,
             title = stringResource(R.string.home_components_title),
-            summary = if (scan.items.isEmpty()) stringResource(R.string.home_components_unscanned)
-            else stringResource(R.string.home_components_summary, disabled.size),
+            summary = when {
+                scan.items.isEmpty() -> stringResource(R.string.home_components_unscanned)
+                disabled.isEmpty() -> stringResource(R.string.home_components_summary_none)
+                (kindCounts[CleanupKind.LAUNCHER] ?: 0) > 0 -> stringResource(
+                    R.string.home_components_summary_kinds_launcher,
+                    kindCounts[CleanupKind.TILE] ?: 0,
+                    kindCounts[CleanupKind.SHORTCUT] ?: 0,
+                    kindCounts[CleanupKind.WIDGET] ?: 0,
+                    kindCounts[CleanupKind.LAUNCHER] ?: 0
+                )
+                else -> stringResource(
+                    R.string.home_components_summary_kinds,
+                    kindCounts[CleanupKind.TILE] ?: 0,
+                    kindCounts[CleanupKind.SHORTCUT] ?: 0,
+                    kindCounts[CleanupKind.WIDGET] ?: 0
+                )
+            },
             expanded = expanded == "components",
             onHeaderClick = { expanded = if (expanded == "components") null else "components" },
             onOpenAll = { vm.openWorkbench(WorkbenchTab.COMPONENTS) },
@@ -235,6 +264,12 @@ fun HomeScreen(
                 )
                 CardDivider()
                 HomeActionRow(
+                    stringResource(R.string.home_reset_default),
+                    Icons.Rounded.RestartAlt,
+                    { resetSheetOpen = true }
+                )
+                CardDivider()
+                HomeActionRow(
                     stringResource(R.string.home_diagnostic_short),
                     Icons.Rounded.BugReport,
                     onCollectDiagnostics,
@@ -251,6 +286,98 @@ fun HomeScreen(
             textAlign = TextAlign.Center
         )
     }
+
+    if (resetSheetOpen) {
+        ResetDefaultsSheet(
+            state = state,
+            textMenuCount = textMenuOrder.size,
+            visibilityCount = state.hiddenFromApps.size + visibilityScopes.size,
+            disabledComponents = disabled.size,
+            onDismiss = { resetSheetOpen = false },
+            onConfirm = {
+                resetSheetOpen = false
+                vm.resetAllConfig()
+                val restorable = scan.items.filter { it.enabled == false && it.blocked == null }
+                if (restorable.isNotEmpty()) vm.changeComponents(restorable, true)
+            }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ResetDefaultsSheet(
+    state: MainState,
+    textMenuCount: Int,
+    visibilityCount: Int,
+    disabledComponents: Int,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    val typedRules = state.openTypes.rules.values.sumOf { it.size } +
+        state.browserLinks.rules.values.sumOf { it.size }
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ) {
+        Column(
+            Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                stringResource(R.string.reset_default_title),
+                style = MaterialTheme.typography.titleMedium
+            )
+            Text(
+                stringResource(R.string.reset_default_message),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+            Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                ResetItem(stringResource(R.string.reset_default_item_rules, state.selected.size))
+                ResetItem(
+                    stringResource(
+                        R.string.reset_default_item_priority,
+                        state.priorities.apps.values.flatten().distinct().size
+                    )
+                )
+                ResetItem(stringResource(R.string.reset_default_item_typed, typedRules))
+                ResetItem(stringResource(R.string.reset_default_item_text_menu, textMenuCount))
+                ResetItem(stringResource(R.string.reset_default_item_visibility, visibilityCount))
+                if (disabledComponents > 0) {
+                    ResetItem(stringResource(R.string.reset_default_item_components, disabledComponents))
+                }
+            }
+            Text(
+                stringResource(R.string.reset_default_keep_diagnostic),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+            Row(
+                Modifier.fillMaxWidth().padding(top = 12.dp),
+                horizontalArrangement = Arrangement.End
+            ) {
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+                Button(
+                    onClick = onConfirm,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) { Text(stringResource(R.string.reset_default_confirm)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ResetItem(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable

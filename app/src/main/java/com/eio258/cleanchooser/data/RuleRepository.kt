@@ -325,6 +325,48 @@ class RuleRepository(context: Context) {
         mutableRevision.value++
     }
 
+    /**
+     * Safety net for a misconfiguration: clears every user setting and returns the module to a
+     * pass-through state (no filtering, no ordering, no visibility overrides, no component
+     * protection). Diagnostic mode is deliberately kept so the user can still collect a log
+     * bundle while investigating what went wrong.
+     */
+    @Synchronized fun resetAll() {
+        val diagnostic = mutableDiagnostic.value
+        prefs.edit()
+            .putStringSet(KEY_RULES, emptySet())
+            .putBoolean(KEY_BLACKLIST, true)
+            .putString(KEY_DISPLAY_MODE, DisplayMode.HIDE_SELECTED.name)
+            .putString(KEY_PRIORITIES, encodePriorities(PriorityConfig()))
+            .putString(KEY_OPEN_TYPES, json.encodeToString(OpenTypeConfig.serializer(), OpenTypeConfig()))
+            .putString(KEY_BROWSER_LINKS, json.encodeToString(BrowserLinkConfig.serializer(), BrowserLinkConfig()))
+            .putString(
+                KEY_TEXT_MENU_ORDER,
+                json.encodeToString(
+                    kotlinx.serialization.builtins.ListSerializer(String.serializer()),
+                    emptyList<String>()
+                )
+            )
+            .putBoolean(KEY_DIAGNOSTIC, diagnostic)
+            .putStringSet(KEY_HIDDEN_FROM_APPS, emptySet())
+            .putStringSet(KEY_VISIBILITY_SCOPES, emptySet())
+            .putBoolean(KEY_INITIALIZED, true)
+            .remove(KEY_TILES)
+            .remove(KEY_DEFAULT_OPEN)
+            .apply()
+
+        mutableRules.value = emptySet()
+        mutableMode.value = DisplayMode.HIDE_SELECTED
+        mutablePriorities.value = PriorityConfig()
+        mutableOpenTypes.value = OpenTypeConfig()
+        mutableBrowserLinks.value = BrowserLinkConfig()
+        mutableTextMenuOrder.value = emptyList()
+        mutableHiddenFromApps.value = emptySet()
+        mutableVisibilityScopes.value = emptySet()
+        mutableVisibilityFullPackages.value = emptyMap()
+        mutableRevision.value++
+    }
+
     @Synchronized fun setDisplayMode(value: DisplayMode) {
         if (mutableMode.value == value) return
         mutableMode.value = value

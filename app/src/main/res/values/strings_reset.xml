@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="reset_default_title">Restore defaults</string>
+    <string name="reset_default_message">Clears every personal setting below and returns the module to its pass-through state: no filtering, no ordering, no visibility overrides. Rules already synced to the system stop applying.</string>
+    <string name="reset_default_item_rules">Menu candidate rules · %1$d</string>
+    <string name="reset_default_item_priority">Display order · %1$d</string>
+    <string name="reset_default_item_typed">Open type and host rules · %1$d</string>
+    <string name="reset_default_item_text_menu">Text menu order · %1$d</string>
+    <string name="reset_default_item_visibility">Hidden apps and visibility · %1$d</string>
+    <string name="reset_default_item_components">Re-enable disabled components · %1$d</string>
+    <string name="reset_default_keep_diagnostic">Diagnostic mode is kept and unaffected.</string>
+    <string name="reset_default_confirm">Restore</string>
+    <string name="reset_default_done">Defaults restored</string>
+    <string name="reset_default_component_failed">Config restored, but %1$d components could not be re-enabled (root required)</string>
+</resources>
