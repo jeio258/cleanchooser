@@ -28,6 +28,5 @@
     <string name="logs_clear">Clear</string>
     <string name="logs_empty">No log entries.</string>
     <string name="logs_loading">Loading…</string>
-    <string name="logs_root_required">Root access is required to read the module log.</string>
-    <string name="logs_read_failed">Read failed (exit=%1$d).</string>
+    <string name="logs_lsposed_required">An LSPosed connection is required to read the module log.</string>
 </resources>

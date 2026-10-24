@@ -28,6 +28,5 @@
     <string name="logs_clear">清空</string>
     <string name="logs_empty">暂无日志。</string>
     <string name="logs_loading">正在读取…</string>
-    <string name="logs_root_required">读取模块日志需要 Root 授权。</string>
-    <string name="logs_read_failed">读取失败（exit=%1$d）。</string>
+    <string name="logs_lsposed_required">需要 LSPosed 连接后才能读取模块日志。</string>
 </resources>

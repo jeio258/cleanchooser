@@ -28,6 +28,7 @@ import com.eio258.cleanchooser.domain.VisibilityScope
 import com.eio258.cleanchooser.domain.BrowserLinkConfig
 import com.eio258.cleanchooser.domain.CustomOpenDefinition
 import com.eio258.cleanchooser.domain.DisplayMode
+import com.eio258.cleanchooser.domain.RuntimeProtocol
 import com.eio258.cleanchooser.domain.IntentKind
 import com.eio258.cleanchooser.domain.OpenPreset
 import com.eio258.cleanchooser.domain.OpenSelectionSource
@@ -46,7 +47,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.stateIn
-import com.eio258.cleanchooser.data.ComponentRootCommand
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -725,23 +725,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Dumps the module's own diagnostic tags from the global log buffer via root. Everything the
-     * hooks did (queries, visibility, ordering, config pushes, re-enable blocks) lands there.
+     * Reads the module's ring-buffered log from the shared remote preferences — the same channel
+     * that carries the config down. No root and no logcat access needed on the manager side.
      */
-    private fun readModuleLog(): List<String> = try {
-        ComponentRootCommand.requireRoot()
-        val result = ComponentRootCommand.run(
-            "exec logcat -d -v time -t 400 -s " + MODULE_LOG_TAGS.joinToString(" ") { "$it:I" }
-        )
-        if (result.exitCode == 0) {
-            result.output.lines().filter { it.isNotBlank() }.takeLast(400)
-        } else {
-            listOf(app.getString(R.string.logs_read_failed, result.exitCode))
-        }
-    } catch (failure: ComponentRootCommand.RootAccessException) {
-        listOf(app.getString(R.string.logs_root_required))
-    } catch (failure: Exception) {
-        listOf(app.getString(R.string.logs_read_failed, -1))
+    private fun readModuleLog(): List<String> {
+        val session = app.currentSession()
+            ?: return listOf(app.getString(R.string.logs_lsposed_required))
+        val remote = session.service.getRemotePreferences(RuleRepository.REMOTE_PREFS)
+        val text = remote.getString(RuntimeProtocol.REMOTE_LOG_KEY, null)
+            ?: return emptyList()
+        return text.lines().filter { it.isNotBlank() }.takeLast(400)
     }
 
     private fun readAppLog(): List<String> {
@@ -1155,10 +1148,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val MAX_BACKUP_CHARS = RuleRepository.MAX_BACKUP_CHARS
         internal const val APP_LOG_FILE = "app_runtime_log.txt"
-        internal val MODULE_LOG_TAGS = listOf(
-            "ListCleaner.Diagnostic", "ListCleaner.ComponentGuard",
-            "ListCleaner.DiscoveryFilter", "ListCleaner.Root", "ListCleaner.ComponentStore"
-        )
         private const val TAG = "ListCleaner.ViewModel"
     }
 }
