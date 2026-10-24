@@ -37,4 +37,21 @@ public final class ComponentStatePolicy {
         return "test \"$(id -u)\" = 0 || exit 77\nexec cmd package default-state --user " + user +
             " '" + pkg + "/" + cls + "'";
     }
+
+    /**
+     * Restores a specific prior override (the value PackageManager reported before this app
+     * touched the component), so a restore rolls back to what actually was, instead of forcing
+     * everything to the manifest default.
+     */
+    public static String stateCommand(String pkg, String cls, int user, int override) {
+        if (!valid(pkg, cls, user)) throw new IllegalArgumentException("Invalid component identity");
+        final String verb;
+        if (override == 1) verb = "enable";
+        else if (override == 2) verb = "disable";
+        else if (override == 3) verb = "disable-user";
+        else if (override == 4) verb = "disable-until-used";
+        else throw new IllegalArgumentException("Unsupported prior override: " + override);
+        return "test \"$(id -u)\" = 0 || exit 77\nexec pm " + verb + " --user " + user +
+            " '" + pkg + "/" + cls + "'";
+    }
 }

@@ -11,7 +11,7 @@
     <string name="reset_section_components">Components (root managed)</string>
     <string name="reset_kind_count">%1$s · %2$d</string>
     <string name="reset_section_item_count">%1$s · %2$d</string>
-    <string name="reset_default_components_hint">Only components disabled by this app are listed. Restoring clears the enabled-state override and returns them to the system default.</string>
+    <string name="reset_default_components_hint">Restores each component to the override value recorded before this app touched it. Only components disabled by this app are listed.</string>
     <string name="reset_default_components_none">No components disabled by this app.</string>
     <string name="reset_default_restore_one">Restore</string>
     <string name="reset_default_confirm_yes">Confirm</string>
@@ -31,4 +31,5 @@
     <string name="logs_root_required">Root access is required to read the module log.</string>
     <string name="logs_empty_debug">No module log yet (root command returned normally). Enable diagnostic mode, trigger one share or text menu, then refresh.</string>
     <string name="logs_read_failed">Read failed (exit=%1$d).</string>
+    <string name="detail_restore_components">Restore this app\'s components</string>
 </resources>

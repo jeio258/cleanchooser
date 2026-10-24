@@ -3,6 +3,7 @@ package com.eio258.cleanchooser.ui
 import android.util.Log
 import com.eio258.cleanchooser.ListCleanerApp
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.data.AppLog
 import com.eio258.cleanchooser.data.ComponentRootCommand
 import com.eio258.cleanchooser.data.PersistentComponentState
 import com.eio258.cleanchooser.data.PersistentComponentStore
@@ -113,7 +114,7 @@ internal class RootComponentsController(
                         result = withContext(NonCancellable) { catalog.change(target, enable) }
                         // Persist only after Android confirms the requested state. This makes the
                         // checkbox a durable policy instead of a one-shot `pm disable` command.
-                        persistentComponents.setDisabled(target, disabled = !enable)
+                        persistentComponents.setDisabled(target, disabled = !enable, target.overrideState)
                         completedTargets += target
                     }
                     mutableMessage.value = if (targets.size == 1) {
@@ -124,6 +125,10 @@ internal class RootComponentsController(
                             completedTargets.size
                         )
                     }
+                    AppLog.event(
+                        "root batch " + (if (enable) "enable" else "disable") +
+                            ": ${completedTargets.size}/${targets.size} component(s)"
+                    )
                 } catch (cancelled: CancellationException) {
                     Log.i(TAG, "Root component batch cancelled after ${completedTargets.size}/${targets.size}")
                     throw cancelled
@@ -163,6 +168,7 @@ internal class RootComponentsController(
                 PersistentComponentState.key(it.user, it.component) in ours
         }.distinctBy { "${it.user}|${it.component.flattenToString()}" }
         if (targets.isEmpty()) return
+        AppLog.event("restore requested: ${targets.size} component(s)")
         mutableRootNotice.value = null
         mutableBusy.value = true
         mutableMessage.value = app.getString(R.string.root_requesting_restore)
@@ -179,11 +185,18 @@ internal class RootComponentsController(
                             targets.size,
                             target.label
                         )
-                        withContext(NonCancellable) { catalog.restore(target) }
+                        val prior = persistentComponents.priorFor(
+                            PersistentComponentState.key(target.user, target.component)
+                        )
+                        withContext(NonCancellable) { catalog.restore(target, prior) }
                         persistentComponents.clear(
                             listOf(PersistentComponentState.key(target.user, target.component))
                         )
+                        persistentComponents.clearPriors(
+                            listOf(PersistentComponentState.key(target.user, target.component))
+                        )
                         completedTargets += target
+                        AppLog.event("restored ${target.id} to prior=${prior ?: 0}")
                     }
                     mutableMessage.value = app.getString(
                         R.string.root_batch_restored,
@@ -211,6 +224,10 @@ internal class RootComponentsController(
                         refreshAfterMutation(completedTargets)
                     }
                     mutableBusy.value = false
+                    AppLog.event(
+                        if (completedTargets.size == targets.size) "restore finished: ${completedTargets.size} component(s)"
+                        else "restore stopped: ${completedTargets.size}/${targets.size} component(s)"
+                    )
                 }
             }
         }
@@ -240,7 +257,7 @@ internal class RootComponentsController(
                         )
                         val enable = target.enabled == false
                         withContext(NonCancellable) { catalog.change(target, enable) }
-                        persistentComponents.setDisabled(target, disabled = !enable)
+                        persistentComponents.setDisabled(target, disabled = !enable, target.overrideState)
                         completedTargets += target
                     }
                     mutableMessage.value = app.getString(R.string.root_batch_inverted, completedTargets.size)

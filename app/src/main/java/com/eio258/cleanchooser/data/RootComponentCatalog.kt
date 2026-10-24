@@ -271,8 +271,9 @@ class RootComponentCatalog(private val context: Context) {
      * The state is observed afterwards: a component is only reported as restored once PackageManager
      * confirms the override is gone, so a silent failure can never be shown as success.
      */
-    suspend fun restore(target: RootComponent): String {
+    suspend fun restore(target: RootComponent, priorOverride: Int? = null): String {
         require(target.user == user) { context.getString(R.string.root_user_changed) }
+        val requested = (priorOverride ?: 0).coerceIn(0, 4)
         val discovered = query(target.kind).firstOrNull {
             componentKey(it.info) == target.component
         } ?: error(context.getString(R.string.root_component_missing))
@@ -280,17 +281,26 @@ class RootComponentCatalog(private val context: Context) {
         check(fresh.blocked == null) {
             fresh.blocked ?: context.getString(R.string.root_operation_not_allowed)
         }
-        check(target.overrideState != null && target.overrideState != 0) {
+        check(target.overrideState != null && target.overrideState != requested) {
             context.getString(R.string.root_component_already_default)
         }
 
         lastOperation =
-            "at=${System.currentTimeMillis()} component=${target.id} requested=default status=started"
-        val script = ComponentStatePolicy.defaultStateCommand(
-            target.component.packageName,
-            target.component.className,
-            user
-        )
+            "at=${System.currentTimeMillis()} component=${target.id} requested=$requested status=started"
+        val script = if (requested == 0) {
+            ComponentStatePolicy.defaultStateCommand(
+                target.component.packageName,
+                target.component.className,
+                user
+            )
+        } else {
+            ComponentStatePolicy.stateCommand(
+                target.component.packageName,
+                target.component.className,
+                user,
+                requested
+            )
+        }
         val result = try {
             ComponentRootCommand.run(script)
         } catch (failure: Exception) {
@@ -301,18 +311,18 @@ class RootComponentCatalog(private val context: Context) {
 
         var observed: Int? = null
         repeat(5) {
-            if (observed != 0) {
+            if (observed != requested) {
                 observed = runCatching {
                     pm.getComponentEnabledSetting(target.component)
                 }.getOrNull()
-                if (observed != 0) delay(100)
+                if (observed != requested) delay(100)
             }
         }
         lastOperation =
-            "at=${System.currentTimeMillis()} component=${target.id} requested=default " +
+            "at=${System.currentTimeMillis()} component=${target.id} requested=$requested " +
                 "exit=${result.exitCode} timeout=${result.timedOut} observed=$observed\n${result.output}"
         Log.i(TAG, "COMPONENT_RESTORE ${target.id} exit=${result.exitCode} observed=$observed")
-        check(!result.timedOut && result.exitCode == 0 && observed == 0) {
+        check(!result.timedOut && result.exitCode == 0 && observed == requested) {
             context.getString(R.string.root_operation_unconfirmed, result.output)
         }
         return context.getString(R.string.root_component_restored, fresh.label)

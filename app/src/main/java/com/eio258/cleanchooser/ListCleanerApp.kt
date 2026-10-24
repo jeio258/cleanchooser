@@ -4,6 +4,8 @@ import android.app.Application
 import android.content.Intent
 import android.content.pm.ResolveInfo
 import android.util.Log
+import com.eio258.cleanchooser.BuildConfig
+import com.eio258.cleanchooser.data.AppLog
 import com.eio258.cleanchooser.data.IntentCatalog
 import com.eio258.cleanchooser.data.PersistentComponentStore
 import com.eio258.cleanchooser.data.RuleRepository
@@ -78,6 +80,8 @@ class ListCleanerApp : Application(), XposedServiceHelper.OnServiceListener {
 
     override fun onCreate() {
         super.onCreate()
+        AppLog.init(this)
+        AppLog.event("app start ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
         installCrashCapture()
         syncStatus.value = getString(R.string.runtime_waiting_connection)
         runtime.value = RuntimeStatus(message = getString(R.string.runtime_waiting_verify))
@@ -101,17 +105,7 @@ class ListCleanerApp : Application(), XposedServiceHelper.OnServiceListener {
     private fun installCrashCapture() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
-            runCatching {
-                val file = java.io.File(filesDir, MainViewModel.APP_LOG_FILE)
-                val stamp = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.US)
-                    .format(java.util.Date())
-                file.appendText("$stamp ${thread.name}\n${android.util.Log.getStackTraceString(throwable)}\n\n")
-                val max = 64 * 1024
-                if (file.length() > max) {
-                    val text = file.readText()
-                    file.writeText(text.substring(text.length - max))
-                }
-            }
+            AppLog.crash(thread.name, throwable)
             previous?.uncaughtException(thread, throwable)
         }
     }

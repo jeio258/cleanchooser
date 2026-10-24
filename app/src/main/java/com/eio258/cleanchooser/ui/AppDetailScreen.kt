@@ -70,6 +70,11 @@ fun AppDetailScreen(packageName: String, state: MainState, vm: MainViewModel) {
     Column(Modifier.fillMaxSize()) {
         DetailHeader(packageName, headerLabel, headerIcon)
         if (componentsContext) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)) {
+                TextButton(onClick = { vm.restoreComponentsForApp(packageName) }) {
+                    Text(stringResource(R.string.detail_restore_components))
+                }
+            }
             ComponentsDetailBody(
                 packageName = packageName,
                 vm = vm,

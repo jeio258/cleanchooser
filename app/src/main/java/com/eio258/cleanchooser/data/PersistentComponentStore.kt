@@ -20,6 +20,8 @@ object PersistentComponentState {
     const val REMOTE_KEY = "root_disabled_components_v1"
     const val LOCAL_PREFS = "root_component_state"
     const val LOCAL_KEY = "disabled_components"
+    /** Local-only record of the override value each component had before this app disabled it. */
+    const val LOCAL_PRIOR = "prior_overrides"
     private const val MAX_ENTRIES = 20_000
 
     fun key(user: Int, component: ComponentName): String =
@@ -51,6 +53,30 @@ object PersistentComponentState {
 class PersistentComponentStore(private val app: ListCleanerApp) {
     private val prefs = app.getSharedPreferences(PersistentComponentState.LOCAL_PREFS, Context.MODE_PRIVATE)
 
+    private fun priorEntries(): Set<String> =
+        prefs.getStringSet(PersistentComponentState.LOCAL_PRIOR, emptySet()).orEmpty()
+
+    /** Remembers what the override was before this app disabled the component ("key|prior"). */
+    @Synchronized
+    fun recordPrior(key: String, priorOverride: Int?) {
+        if (priorOverride == null || priorOverride !in 0..4) return
+        val next = (priorEntries().filterNot { it.startsWith("$key|") } + "$key|$priorOverride").toSet()
+        prefs.edit().putStringSet(PersistentComponentState.LOCAL_PRIOR, next).apply()
+    }
+
+    fun priorFor(key: String): Int? =
+        priorEntries().firstOrNull { it.startsWith("$key|") }
+            ?.substringAfterLast('|')?.toIntOrNull()
+
+    @Synchronized
+    fun clearPriors(keys: Collection<String>) {
+        if (keys.isEmpty()) return
+        val prefixes = keys.toSet()
+        val next = priorEntries().filterNot { entry -> prefixes.any { entry.startsWith("$it|") } }.toSet()
+        if (next.size == priorEntries().size) return
+        prefs.edit().putStringSet(PersistentComponentState.LOCAL_PRIOR, next).apply()
+    }
+
     @Synchronized
     fun disabledKeys(): Set<String> = PersistentComponentState.sanitize(
         prefs.getStringSet(PersistentComponentState.LOCAL_KEY, emptySet()).orEmpty()
@@ -64,7 +90,7 @@ class PersistentComponentStore(private val app: ListCleanerApp) {
      * A remote write failure does not discard the local intent; the next screen refresh retries it.
      */
     @Synchronized
-    fun setDisabled(component: RootComponent, disabled: Boolean): Boolean {
+    fun setDisabled(component: RootComponent, disabled: Boolean, priorOverride: Int? = null): Boolean {
         val key = PersistentComponentState.key(component.user, component.component)
         val next = disabledKeys().toMutableSet().apply {
             if (disabled) add(key) else remove(key)
@@ -73,6 +99,7 @@ class PersistentComponentStore(private val app: ListCleanerApp) {
             Log.e(TAG, "Failed to persist desired component state for $key")
             return false
         }
+        if (disabled) recordPrior(key, priorOverride) else clearPriors(listOf(key))
         return syncRemote(next)
     }
 

@@ -18,6 +18,7 @@ import com.eio258.cleanchooser.ListCleanerApp
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.RuntimeStatus
 import com.eio258.cleanchooser.data.CleanupKind
+import com.eio258.cleanchooser.data.AppLog
 import com.eio258.cleanchooser.data.BrowserLinkDiscovery
 import com.eio258.cleanchooser.data.ComponentRootCommand
 import com.eio258.cleanchooser.data.RootComponent
@@ -653,6 +654,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun resetMenuConfig() {
         val cleared = resetSummary()
+        AppLog.event("reset menu config: clearing $cleared entries")
         app.rules.resetMenuConfig()
         viewModelScope.launch {
             runCatching { app.synchronize() }
@@ -667,6 +669,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             it.kind == kind && it.enabled == false && it.blocked == null
         }
         if (targets.isEmpty()) return
+        AppLog.event("restore by kind=${kind.name}: ${targets.size} target(s)")
         rootComponents.restore(targets)
         mutableResetMessage.value = app.getString(
             R.string.reset_kind_submitted,
@@ -675,9 +678,25 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    /** Restores every app-disabled component of one application, from its detail page. */
+    fun restoreComponentsForApp(packageName: String) {
+        val targets = componentScan.value.items.filter {
+            it.component.packageName == packageName && it.enabled == false && it.blocked == null
+        }
+        if (targets.isEmpty()) return
+        AppLog.event("restore for app=$packageName: ${targets.size} target(s)")
+        rootComponents.restore(targets)
+        mutableResetMessage.value = app.getString(
+            R.string.reset_kind_submitted,
+            packageName,
+            targets.size
+        )
+    }
+
     fun restoreAllComponents() {
         val targets = componentScan.value.items.filter { it.enabled == false && it.blocked == null }
         if (targets.isEmpty()) return
+        AppLog.event("restore all: ${targets.size} target(s)")
         rootComponents.restore(targets)
         mutableResetMessage.value = app.getString(
             R.string.reset_kind_submitted,
@@ -719,9 +738,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun clearAppLog() {
-        viewModelScope.launch(Dispatchers.IO) {
-            app.filesDir.resolve(APP_LOG_FILE).delete()
-        }
+        AppLog.clear()
         mutableAppLog.value = emptyList()
     }
 
@@ -745,16 +762,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             else -> listOf(app.getString(R.string.logs_read_failed, result.exitCode))
         }
     } catch (failure: ComponentRootCommand.RootAccessException) {
+        AppLog.error("module log read: root unavailable", failure)
         listOf(app.getString(R.string.logs_root_required))
     } catch (failure: Exception) {
+        AppLog.error("module log read failed", failure)
         listOf(app.getString(R.string.logs_read_failed, -1))
     }
 
-    private fun readAppLog(): List<String> {
-        val file = app.filesDir.resolve(APP_LOG_FILE)
-        if (!file.exists()) return emptyList()
-        return runCatching { file.readLines() }.getOrDefault(emptyList()).takeLast(400)
-    }
+    private fun readAppLog(): List<String> = AppLog.snapshot().takeLast(400)
 
     fun toggle(rule: ComponentRule) { if (canEdit()) app.rules.toggle(rule) }
 
@@ -1160,10 +1175,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val MAX_BACKUP_CHARS = RuleRepository.MAX_BACKUP_CHARS
-        internal const val APP_LOG_FILE = "app_runtime_log.txt"
         private val MODULE_LOG_TAGS = listOf(
             "ListCleaner.Diagnostic", "ListCleaner.ComponentGuard",
-            "ListCleaner.DiscoveryFilter", "ListCleaner.Root", "ListCleaner.ComponentStore"
+            "ListCleaner.DiscoveryFilter", "ListCleaner.Root", "ListCleaner.ComponentStore",
+            "ListCleaner.DirectShare"
         )
         private const val TAG = "ListCleaner.ViewModel"
     }
