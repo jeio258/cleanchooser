@@ -19,6 +19,7 @@ import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.RuntimeStatus
 import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.data.BrowserLinkDiscovery
+import com.eio258.cleanchooser.data.ComponentRootCommand
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.data.RuleRepository
 import com.eio258.cleanchooser.domain.ComponentCandidate
@@ -725,16 +726,28 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Reads the module's ring-buffered log from the shared remote preferences — the same channel
-     * that carries the config down. No root and no logcat access needed on the manager side.
+     * Dumps the module's diagnostic tags from the global log buffer via root, using the same
+     * script shape as every other root command here (identity check first, then exec): Magisk su
+     * treats an exec-first script differently. When the dump comes back empty the page shows a
+     * self-diagnosis line instead of a bare "no entries", so the next failure explains itself.
      */
-    private fun readModuleLog(): List<String> {
-        val session = app.currentSession()
-            ?: return listOf(app.getString(R.string.logs_lsposed_required))
-        val remote = session.service.getRemotePreferences(RuleRepository.REMOTE_PREFS)
-        val text = remote.getString(RuntimeProtocol.REMOTE_LOG_KEY, null)
-            ?: return emptyList()
-        return text.lines().filter { it.isNotBlank() }.takeLast(400)
+    private fun readModuleLog(): List<String> = try {
+        ComponentRootCommand.requireRoot()
+        val filter = MODULE_LOG_TAGS.joinToString(" ") { "$it:I" }
+        val script = "test \"\$(id -u)\" = 0 || exit 77\nexec logcat -d -v time -t 600 -s $filter"
+        val result = ComponentRootCommand.run(script)
+        val lines = result.output.lines()
+            .filter { it.isNotBlank() && !it.startsWith("--------- beginning of") }
+            .takeLast(400)
+        when {
+            lines.isNotEmpty() -> lines
+            result.exitCode == 0 -> listOf(app.getString(R.string.logs_empty_debug))
+            else -> listOf(app.getString(R.string.logs_read_failed, result.exitCode))
+        }
+    } catch (failure: ComponentRootCommand.RootAccessException) {
+        listOf(app.getString(R.string.logs_root_required))
+    } catch (failure: Exception) {
+        listOf(app.getString(R.string.logs_read_failed, -1))
     }
 
     private fun readAppLog(): List<String> {
@@ -1148,6 +1161,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     companion object {
         const val MAX_BACKUP_CHARS = RuleRepository.MAX_BACKUP_CHARS
         internal const val APP_LOG_FILE = "app_runtime_log.txt"
+        private val MODULE_LOG_TAGS = listOf(
+            "ListCleaner.Diagnostic", "ListCleaner.ComponentGuard",
+            "ListCleaner.DiscoveryFilter", "ListCleaner.Root", "ListCleaner.ComponentStore"
+        )
         private const val TAG = "ListCleaner.ViewModel"
     }
 }

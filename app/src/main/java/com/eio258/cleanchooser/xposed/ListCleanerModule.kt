@@ -85,9 +85,6 @@ class ListCleanerModule : XposedModule() {
     }
     private val callerPackageCache = java.util.concurrent.ConcurrentHashMap<Int, List<String>>()
 
-    private val logRing = ArrayDeque<String>(MODULE_LOG_CAPACITY)
-    private var lastLogPushElapsed = 0L
-    private val remoteLogTime = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
 
     private var snapshot = RuntimeRuleSnapshot(
         configured = emptySet(),
@@ -1813,25 +1810,6 @@ class ListCleanerModule : XposedModule() {
         val line = "pid=${Process.myPid()} process=$processName uptimeMs=${SystemClock.elapsedRealtime()} $message"
         runCatching { Log.i(DIAGNOSTIC_TAG, line) }
         runCatching { log(Log.INFO, DIAGNOSTIC_TAG, line) }
-        pushRemoteLog(line)
-    }
-
-    /**
-     * Mirrors recent log lines into remote preferences so the manager's log page can show what
-     * the hooks actually did without root and without logcat access. Writes are coalesced: the
-     * ring always grows in memory, the remote copy is refreshed at most every 2 seconds.
-     */
-    private fun pushRemoteLog(line: String) {
-        if (logRing.size >= MODULE_LOG_CAPACITY) logRing.removeFirst()
-        logRing.addLast(remoteLogTime.format(java.util.Date()) + " " + line)
-        val now = SystemClock.elapsedRealtime()
-        if (now - lastLogPushElapsed < 2_000) return
-        lastLogPushElapsed = now
-        runCatching {
-            getRemotePreferences(RuleRepository.REMOTE_PREFS).edit()
-                .putString(RuntimeProtocol.REMOTE_LOG_KEY, logRing.joinToString("\n"))
-                .apply()
-        }
     }
 
     private fun isQueryIntentActivitiesMethod(method: Method): Boolean =
@@ -1845,7 +1823,6 @@ class ListCleanerModule : XposedModule() {
     private companion object {
         const val TAG = "ListCleaner"
         const val DIAGNOSTIC_TAG = "ListCleaner.Diagnostic"
-        private const val MODULE_LOG_CAPACITY = 150
         const val HOOK_ID = "ic-query-filter"
         const val FRAMEWORK_PACKAGE = "android"
         const val INTENT_RESOLVER_PACKAGE = "com.android.intentresolver"

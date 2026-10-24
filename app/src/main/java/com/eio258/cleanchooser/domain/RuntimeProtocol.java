@@ -13,8 +13,6 @@ import java.security.MessageDigest;
 public final class RuntimeProtocol {
     public static final String ACTION = "com.eio258.cleanchooser.action.RUNTIME_PROBE_V1";
     public static final String PACKAGE = "com.eio258.cleanchooser";
-    /** Ring-buffered module log lines mirrored to remote preferences for the manager log page. */
-    public static final String REMOTE_LOG_KEY = "module_log_ring_v1";
     public static final String COMPONENT = PACKAGE + ".RuntimeProbe";
 
     public static final int VERSION = 2;
