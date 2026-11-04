@@ -214,7 +214,7 @@ private fun SystemEntryRow(
                 )
             } else if (candidate.unavailable) {
                 Text(
-                    "未观测到",
+                    stringResource(R.string.system_entry_unobserved),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

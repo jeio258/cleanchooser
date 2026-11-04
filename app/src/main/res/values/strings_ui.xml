@@ -50,4 +50,5 @@
     <string name="workbench_direct_share">Direct share</string>
     <string name="workbench_system_entry">System entries</string>
     <string name="system_entry_hidden_hint">%1$d system entries hidden; toggles affect the settings lists only, never the service components</string>
+    <string name="system_entry_unobserved">Not observed</string>
 </resources>
