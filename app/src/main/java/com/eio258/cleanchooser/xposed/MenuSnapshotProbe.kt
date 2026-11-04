@@ -15,21 +15,22 @@ import java.lang.reflect.Modifier
 import java.security.MessageDigest
 
 /**
- * Observes the ROM's text selection menu policy by actively assembling it in system_server.
+ * Observes the ROM text-selection menu from system_server.
  *
- * Hooking toolbar setters never fires in system_server, so this probe builds its own
- * [Menu] from PROCESS_TEXT candidates, lets the installed Oplus editor extension decide
- * which entries it pins or promotes, collects the toolbar's real visible set, and
- * compares [MenuItemImpl.requiresActionButton] before/after to classify entries as
- * FIXED (ROM-pinned slot) vs ORDINARY (regular candidate).
+ * Technique (studied from the GPL txtoi project, reimplemented from scratch — no txtoi code):
+ * on Oplus builds the menu policy lives behind android.widget.IEditorExt and the floating
+ * toolbar extension, so a probe menu can be assembled in place and the ROM itself decides
+ * which entries it pins. The pinned verdict combines "the ROM extension declared the entry"
+ * with "the entry gained an action slot during collection".
  *
- * Everything is fail-open: any reflection gap degrades to UNAVAILABLE plus a short
- * failure backoff; nothing here ever throws to the caller.
+ * Everything is fail-open: reflection gaps degrade to UNAVAILABLE plus a short backoff and
+ * this class never throws at its callers. The ROM policy is built lazily — extension
+ * factories are not ready at system-server-start time.
  */
 internal class MenuSnapshotProbe {
-    private val memo = MenuPolicyMemo()
+    private val memo = ProbeOutcomeCache()
 
-    @Volatile private var policy: RomMenuPolicy? = null
+    @Volatile private var inspector: RomMenuInspector? = null
     @Volatile private var classLoader: ClassLoader? = null
     @Volatile private var logger: ((String) -> Unit)? = null
     @Volatile private var systemContext: Context? = null
@@ -40,61 +41,65 @@ internal class MenuSnapshotProbe {
     fun initialize(classLoader: ClassLoader, record: (String) -> Unit) {
         this.classLoader = classLoader
         logger = record
-        // RomMenuPolicy is built lazily on the first evaluate: ColorOS extension factories are
-        // not ready at onSystemServerStarting and return null there (txtoi builds lazily too).
+        // The inspector is built lazily on the first evaluate call: Oplus extension factories
+        // answer null while system_server is still starting, so early construction always fails.
         record("MENU_PROBE_DEFERRED")
     }
 
-    private fun policyOrUnavailable(): RomMenuPolicy? {
-        policy?.let { return it }
+    private fun inspectorOrDown(): RomMenuInspector? {
+        inspector?.let { return it }
         val loader = classLoader ?: return null
-        val built = runCatching { RomMenuPolicy(loader) }.getOrElse {
-            logger?.invoke("MENU_PROBE_UNAVAILABLE error=${it.javaClass.simpleName} msg=${it.message}")
+        val built = runCatching { RomMenuInspector(loader) }.getOrElse {
+            logger?.invoke("MENU_PROBE_DOWN reason=${it.message}")
             null
         } ?: return null
-        policy = built
-        logger?.invoke("MENU_PROBE_READY")
+        inspector = built
+        logger?.invoke("MENU_PROBE_UP")
         return built
     }
 
-    /** candidates: (packageName, className) of PROCESS_TEXT activities, in probe order. */
+    /** candidates: (packageName, className) pairs of PROCESS_TEXT activities, in query order. */
     @Synchronized
     fun evaluate(candidates: List<Pair<String, String>>) {
-        val rom = policyOrUnavailable() ?: return
+        val inspector = inspectorOrDown() ?: return
         if (candidates.isEmpty()) return
         val now = android.os.SystemClock.elapsedRealtime()
-        val key = MenuPolicyMemo.fingerprint(candidates)
-        val cached = memo.get(key, now)
+        val fingerprint = ProbeOutcomeCache.fingerprint(candidates)
+        val cached = memo.lookup(fingerprint, now)
         if (cached != null) {
-            if (!cached.failure) {
-                val next = TextMenuSnapshot.encode(cached.items)
-                if (next.isNotEmpty() && next != encoded) encoded = next
+            if (!cached.degraded) {
+                publish(cached.entries)
             }
             return
         }
         val context = systemContext() ?: run {
-            record("MENU_PROBE_FAILED error=no_system_context")
-            memo.putFailure(key, now)
+            record("MENU_PROBE_STALLED reason=no_system_context")
+            memo.markFailure(fingerprint, now)
             return
         }
-        val items = runCatching { rom.probe(context, candidates) }.getOrElse {
-            record("MENU_PROBE_FAILED error=${it.javaClass.simpleName}")
-            memo.putFailure(key, now)
+        val observed = runCatching { inspector.observe(context, candidates) }.getOrElse {
+            record("MENU_PROBE_STALLED reason=${it.message}")
+            memo.markFailure(fingerprint, now)
             return
         }
-        if (items.isEmpty()) {
-            memo.putFailure(key, now)
+        if (observed.isEmpty()) {
+            memo.markFailure(fingerprint, now)
             return
         }
-        val next = TextMenuSnapshot.encode(items)
-        if (next.isEmpty()) {
-            memo.putFailure(key, now)
+        val payload = TextMenuSnapshot.encode(observed)
+        if (payload.isEmpty()) {
+            memo.markFailure(fingerprint, now)
             return
         }
-        memo.put(key, items, now)
-        if (next != encoded) {
+        memo.store(fingerprint, observed, now)
+        publish(observed)
+    }
+
+    private fun publish(entries: List<TextMenuItem>) {
+        val next = TextMenuSnapshot.encode(entries)
+        if (next.isNotEmpty() && next != encoded) {
             encoded = next
-            record("MENU_PROBE_CAPTURED items=${items.size} fixed=${items.count { it.fixed }}")
+            record("MENU_PROBE_PUBLISHED entries=${entries.size} pinned=${entries.count { it.fixed }}")
         }
     }
 
@@ -117,253 +122,237 @@ internal class MenuSnapshotProbe {
 }
 
 /**
- * Reflection bundle for the installed ROM menu policy. Resolution is all-or-nothing:
- * a missing Oplus class or method fails construction and the probe reports UNAVAILABLE.
+ * One PROCESS_TEXT candidate carried through the probe. [menuHandle] is the MenuItem the
+ * assembled menu ended up with for this candidate; the classification compares action-slot
+ * state of that handle before and after the ROM collected the visible entries.
  */
-private class RomMenuPolicy(classLoader: ClassLoader) {
-    private val editorExt: Any
+private class ProbeTarget(
+    val component: ComponentName,
+    val info: ActivityInfo,
+    val label: CharSequence,
+    val intent: Intent,
+) {
+    var romDeclared: Boolean = false
+    var menuHandle: MenuItem? = null
+    var slotBefore: Boolean = false
+    var pinned: Boolean = false
+}
+
+/**
+ * Reflection facade over the Oplus menu policy. Construction fails with a descriptive
+ * [IllegalStateException] (message = the missing piece) when the ROM lacks any piece; the
+ * probe then reports itself down until the next process restart.
+ */
+private class RomMenuInspector(classLoader: ClassLoader) {
+    private val editor: Any
     private val raisePriority: Method
-    private val setSpeech: Method
+    private val setSpeechAssist: Method
     private val setSearch: Method
-    private val requiresActionButton: Method
-    private val newMenuBuilder: Constructor<*>
-    private val collectVisible: Method
-    private val comparator: Method
+    private val actionSlotAccessor: Method
+    private val menuBuilderConstructor: Constructor<*>
+    private val visibleCollector: Method
+    private val orderingComparator: Method
 
     init {
-        val editorType = load(classLoader, "android.widget.IEditorExt")
-            ?: fail("IEditorExt unavailable")
-        val toolbarExtType =
-            load(classLoader, "com.android.internal.widget.floatingtoolbar.IFloatingToolbarExt")
-                ?: fail("IFloatingToolbarExt unavailable")
-        val editor = extInstance(editorType)
-        val toolbarExt = extInstance(toolbarExtType)
-        val editorImpl = load(classLoader, "android.widget.EditorExtImpl")
-        val toolbarExtImpl =
-            load(classLoader, "com.android.internal.widget.floatingtoolbar.FloatingToolbarExtImpl")
-        if (editorImpl == null || toolbarExtImpl == null ||
-            !editorImpl.isInstance(editor) || !toolbarExtImpl.isInstance(toolbarExt)
-        ) {
-            fail("installed menu policy implementation unavailable")
-        }
-        // A default extension is not evidence that the ROM has no pinned items.
-        editorExt = editor
-        raisePriority = editorType.getMethod(
-            "raiseOplusMenuPriority", Int::class.java, CharSequence::class.java,
-            Intent::class.java, ResolveInfo::class.java, Menu::class.java
+        val editorContract = requireClass(classLoader, "android.widget.IEditorExt")
+        val toolbarContract = requireClass(classLoader, "com.android.internal.widget.floatingtoolbar.IFloatingToolbarExt")
+        editor = newExtension(editorContract)
+        val toolbar = newExtension(toolbarContract)
+        check(
+            classLoader.loadClass("android.widget.EditorExtImpl").isInstance(editor) &&
+                classLoader.loadClass("com.android.internal.widget.floatingtoolbar.FloatingToolbarExtImpl").isInstance(toolbar)
+        ) { "menu policy: Oplus editor extensions absent" }
+        raisePriority = editorContract.getMethod(
+            "raiseOplusMenuPriority", Int::class.javaPrimitiveType, CharSequence::class.java,
+            Intent::class.java, ResolveInfo::class.java, Menu::class.java,
         )
-        setSpeech = editorType.getMethod(
-            "setSpeechAssistMenuItem", Int::class.java, Intent::class.java,
-            CharSequence::class.java, ResolveInfo::class.java, Menu::class.java
+        setSpeechAssist = editorContract.getMethod(
+            "setSpeechAssistMenuItem", Int::class.javaPrimitiveType, Intent::class.java,
+            CharSequence::class.java, ResolveInfo::class.java, Menu::class.java,
         )
-        setSearch = editorType.getMethod(
-            "setSearchMenuItem", Int::class.java, Intent::class.java,
-            CharSequence::class.java, ResolveInfo::class.java, Menu::class.java
+        setSearch = editorContract.getMethod(
+            "setSearchMenuItem", Int::class.javaPrimitiveType, Intent::class.java,
+            CharSequence::class.java, ResolveInfo::class.java, Menu::class.java,
         )
-        val menuItemImplType = load(classLoader, "com.android.internal.view.menu.MenuItemImpl")
-            ?: fail("MenuItemImpl unavailable")
-        requiresActionButton = menuItemImplType.getMethod("requiresActionButton")
-        val menuBuilderType = load(classLoader, "com.android.internal.view.menu.MenuBuilder")
-            ?: fail("MenuBuilder unavailable")
-        newMenuBuilder = menuBuilderType.getConstructor(Context::class.java)
-        val toolbarType =
-            load(classLoader, "com.android.internal.widget.floatingtoolbar.FloatingToolbar")
-                ?: fail("FloatingToolbar unavailable")
-        collectVisible =
-            toolbarType.getDeclaredMethod("getVisibleAndEnabledMenuItems", Menu::class.java)
-        collectVisible.isAccessible = true
-        comparator = findMenuComparator(toolbarType)
-        comparator.isAccessible = true
+        val menuItemImpl = requireClass(classLoader, "com.android.internal.view.menu.MenuItemImpl")
+        actionSlotAccessor = menuItemImpl.getMethod("requiresActionButton")
+        val menuBuilder = requireClass(classLoader, "com.android.internal.view.menu.MenuBuilder")
+        menuBuilderConstructor = menuBuilder.getConstructor(Context::class.java)
+        val floatingToolbar = requireClass(classLoader, "com.android.internal.widget.floatingtoolbar.FloatingToolbar")
+        visibleCollector = floatingToolbar.getDeclaredMethod("getVisibleAndEnabledMenuItems", Menu::class.java)
+        visibleCollector.isAccessible = true
+        orderingComparator = locateComparator(floatingToolbar)
+        orderingComparator.isAccessible = true
     }
 
-    private class Slot(
-        val component: ComponentName,
-        val info: ActivityInfo,
-        val label: CharSequence,
-        val intent: Intent,
-        var handled: Boolean,
-        var item: MenuItem? = null,
-        var requiredBefore: Boolean = false,
-        var fixed: Boolean = false,
-    )
-
-    fun probe(context: Context, candidates: List<Pair<String, String>>): List<TextMenuItem> {
+    /**
+     * Registers every candidate into a fresh menu (the ROM extension gets first refusal),
+     * collects the visible entries through the ROM collector, and classifies each entry.
+     * Structural problems abort with an empty list — never with a throw.
+     */
+    fun observe(context: Context, candidates: List<Pair<String, String>>): List<TextMenuItem> {
         val pm = context.packageManager
-        val resolved = ArrayList<Slot>(candidates.size)
+        val targets = ArrayList<ProbeTarget>(candidates.size)
         candidates.forEach { (pkg, cls) ->
-            val component = ComponentName(pkg, cls)
-            val info: ActivityInfo = runCatching { pm.getActivityInfo(component, 0) }.getOrNull()
-                ?: return@forEach
+            val info: ActivityInfo = runCatching {
+                pm.getActivityInfo(ComponentName(pkg, cls), 0)
+            }.getOrNull() ?: return@forEach
             val label = runCatching { info.loadLabel(pm) }.getOrNull()
                 ?.takeIf { it.isNotBlank() } ?: pkg
             val intent = Intent(Intent.ACTION_PROCESS_TEXT).setType("text/plain")
                 .putExtra(Intent.EXTRA_PROCESS_TEXT_READONLY, false)
-                .setComponent(component)
-            resolved.add(Slot(component, info, label, intent, handled = false))
+                .setComponent(ComponentName(pkg, cls))
+            targets.add(ProbeTarget(ComponentName(pkg, cls), info, label, intent))
         }
-        if (resolved.isEmpty()) fail("no candidates resolved")
+        if (targets.isEmpty()) return emptyList()
 
-        val menu = newMenuBuilder.newInstance(context) as Menu
-        resolved.forEachIndexed { index, slot ->
-            val info = ResolveInfo().apply { activityInfo = slot.info }
-            slot.handled = runCatching {
-                raisePriority.invoke(editorExt, 100 + index, slot.label, slot.intent, info, menu) as Boolean
-            }.getOrDefault(false)
-            if (!slot.handled) slot.handled = runCatching {
-                setSpeech.invoke(editorExt, 5, slot.intent, slot.label, info, menu) as Boolean
-            }.getOrDefault(false)
-            if (!slot.handled) slot.handled = runCatching {
-                setSearch.invoke(editorExt, 6, slot.intent, slot.label, info, menu) as Boolean
-            }.getOrDefault(false)
-            if (!slot.handled) {
-                menu.add(0, 0, 100 + index, slot.label).setIntent(slot.intent)
+        val menu = menuBuilderConstructor.newInstance(context) as Menu
+        targets.forEachIndexed { position, target ->
+            val asInfo = ResolveInfo().apply { activityInfo = target.info }
+            target.romDeclared = claimsEntry(raisePriority, 100 + position, target, asInfo, menu) ||
+                claimsEntry(setSpeechAssist, 5, target, asInfo, menu) ||
+                claimsEntry(setSearch, 6, target, asInfo, menu)
+            if (!target.romDeclared) {
+                menu.add(0, 0, 100 + position, target.label).setIntent(target.intent)
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_NEVER)
             }
-            if (menu.size() != index + 1) fail("unexpected menu size")
-            val freeIndex = (0 until menu.size())
-                .firstOrNull { index -> resolved.none { other -> other.item === menu.getItem(index) } }
-            slot.item = menu.getItem(freeIndex ?: fail("generated menu item unavailable"))
+            if (menu.size() != position + 1) {
+                // The ROM inserted or dropped an entry; the mapping below would be guesswork.
+                return emptyList()
+            }
+            target.menuHandle = unclaimedHandle(menu, targets) ?: return emptyList()
         }
 
-        resolved.forEach { slot ->
-            slot.requiredBefore = runCatching {
-                requiresActionButton.invoke(slot.item) as Boolean
-            }.getOrThrow()
+        targets.forEach { target ->
+            target.slotBefore = runCatching {
+                actionSlotAccessor.invoke(target.menuHandle) as Boolean
+            }.getOrDefault(false)
         }
-
-        val collected = runCatching { collectVisible.invoke(null, menu) as? List<*> }
-            .getOrNull() ?: fail("menu collection unavailable")
-        if (collected.size != resolved.size) fail("incomplete menu collection")
-        val mapped = ArrayList<Slot>(resolved.size)
+        val collected = runCatching { visibleCollector.invoke(null, menu) as? List<*> }
+            .getOrNull() ?: return emptyList()
+        if (collected.size != targets.size) return emptyList()
+        val seen = HashSet<MenuItem>()
         collected.forEach { raw ->
-            val item = raw as? MenuItem ?: fail("invalid toolbar menu item")
-            val slot = resolved.firstOrNull { it.item === item } ?: fail("unmapped toolbar menu item")
-            if (slot in mapped) fail("duplicate toolbar menu item")
-            val requiredAfter = runCatching {
-                requiresActionButton.invoke(item) as Boolean
-            }.getOrThrow()
-            slot.fixed = slot.handled || (!slot.requiredBefore && requiredAfter)
-            mapped.add(slot)
+            val handle = raw as? MenuItem ?: return emptyList()
+            val target = targets.firstOrNull { it.menuHandle === handle } ?: return emptyList()
+            if (!seen.add(handle)) return emptyList()
+            val slotAfter = runCatching {
+                actionSlotAccessor.invoke(handle) as Boolean
+            }.getOrDefault(target.slotBefore)
+            target.pinned = target.romDeclared || (slotAfter && !target.slotBefore)
         }
 
-        return mapped
-            .sortedWith(Comparator { left, right ->
-                comparator.invoke(null, left.item, right.item) as Int
-            })
-            .map { slot ->
-                TextMenuItem(
-                    title = slot.label.toString(),
-                    component = slot.component.flattenToString(),
-                    fixed = slot.fixed,
-                )
-            }
-    }
-
-    /** Locate the ROM comparator by its unique static signature, not a lambda name. */
-    private fun findMenuComparator(toolbarType: Class<*>): Method {
-        var found: Method? = null
-        for (method in toolbarType.declaredMethods) {
-            val parameters = method.parameterTypes
-            if (Modifier.isStatic(method.modifiers) && method.returnType == Int::class.javaPrimitiveType &&
-                parameters.size == 2 && parameters[0] == MenuItem::class.java &&
-                parameters[1] == MenuItem::class.java
-            ) {
-                if (found != null) fail("ambiguous installed menu comparator")
-                found = method
-            }
+        return targets.sortedWith { left, right ->
+            orderingComparator.invoke(null, left.menuHandle, right.menuHandle) as Int
+        }.map { target ->
+            TextMenuItem(
+                title = target.label.toString(),
+                component = target.component.flattenToString(),
+                fixed = target.pinned,
+            )
         }
-        return found ?: fail("installed menu comparator unavailable")
     }
 
-    private fun extInstance(type: Class<*>): Any {
-        val builder = Class.forName("system.ext.loader.core.ExtLoader", false, type.classLoader)
+    private fun claimsEntry(method: Method, order: Int, target: ProbeTarget, asInfo: ResolveInfo, menu: Menu): Boolean =
+        runCatching {
+            method.invoke(editor, order, target.label, target.intent, asInfo, menu) as Boolean
+        }.getOrDefault(false)
+
+    /** First menu handle no candidate has claimed yet. */
+    private fun unclaimedHandle(menu: Menu, targets: List<ProbeTarget>): MenuItem? {
+        val claimed = targets.mapNotNull { it.menuHandle }.toHashSet()
+        return (0 until menu.size())
+            .map(menu::getItem)
+            .firstOrNull { it !in claimed }
+    }
+
+    private fun locateComparator(toolbarType: Class<*>): Method {
+        val matches = toolbarType.declaredMethods.filter { method ->
+            Modifier.isStatic(method.modifiers) &&
+                method.returnType == Int::class.javaPrimitiveType &&
+                method.parameterTypes.size == 2 &&
+                method.parameterTypes[0] == MenuItem::class.java &&
+                method.parameterTypes[1] == MenuItem::class.java
+        }
+        check(matches.size == 1) { "menu policy: installed comparator ambiguous (${matches.size})" }
+        return matches.single()
+    }
+
+    private fun newExtension(type: Class<*>): Any {
+        val factory = Class.forName("system.ext.loader.core.ExtLoader", false, type.classLoader)
             .getMethod("type", Class::class.java).invoke(null, type)
-        builder.javaClass.getMethod("base", Any::class.java).invoke(builder, null)
-        return builder.javaClass.getMethod("create").invoke(builder)
-            ?: fail("extension factory returned null")
+        factory.javaClass.getMethod("base", Any::class.java).invoke(factory, null)
+        return factory.javaClass.getMethod("create").invoke(factory)
+            ?: throw IllegalStateException("menu policy: extension factory returned null")
     }
 
-    private fun load(classLoader: ClassLoader, name: String): Class<*>? =
-        runCatching { Class.forName(name, false, classLoader) }.getOrNull()
-
-    private fun fail(message: String): Nothing = throw IllegalStateException(message)
+    private fun requireClass(classLoader: ClassLoader, name: String): Class<*> =
+        runCatching { Class.forName(name, false, classLoader) }
+            .getOrElse { throw IllegalStateException("menu policy: $name absent") }
 }
 
 /**
  * Pure JVM memo of probe outcomes keyed by the candidate fingerprint. Successful
- * classifications live 30s, failures back off 5s; entries are LRU-capped so a long
- * candidate stream cannot grow it. Stores only immutable item lists, never framework objects.
+ * observations live 30s, failures back off 5s; entries are LRU-capped. Stores only
+ * immutable item lists, never framework objects.
  */
-internal class MenuPolicyMemo {
-    internal class Entry(
-        val items: List<TextMenuItem>,
-        val failure: Boolean,
-        val issuedAt: Long,
-        val lifetime: Long,
+internal class ProbeOutcomeCache {
+    data class Cell(
+        val entries: List<TextMenuItem>,
+        val degraded: Boolean,
+        /** TTL runs from the store time; reads never extend it. */
+        val storedAt: Long,
+        /** LRU recency: reads refresh this, eviction uses it. */
+        val touchedAt: Long,
     )
 
-    private val entries = LinkedHashMap<String, Entry>(16, 0.75f, true)
+    private val cells = LinkedHashMap<String, Cell>()
+    private val lock = Any()
 
-    @Synchronized
-    fun get(key: String, now: Long): Entry? {
-        val entry = entries[key] ?: return null
-        if (now < entry.issuedAt || now - entry.issuedAt >= entry.lifetime) {
-            entries.remove(key)
+    fun lookup(key: String, now: Long): Cell? = synchronized(lock) {
+        val cell = cells[key] ?: return null
+        val ttl = if (cell.degraded) FAILURE_TTL_MS else SUCCESS_TTL_MS
+        if (now - cell.storedAt >= ttl) {
+            // Expiry must not leave a failure entry behind: a fresh probe is allowed.
+            cells.remove(key)
             return null
         }
-        return entry
+        // Reading an entry refreshes its LRU recency only; the TTL still runs from store time.
+        cells[key] = cell.copy(touchedAt = now)
+        cell
     }
 
-    @Synchronized
-    fun put(key: String, items: List<TextMenuItem>, now: Long) {
-        entries[key] = Entry(
-            items = items.toList(),
-            failure = false,
-            issuedAt = now,
-            lifetime = SUCCESS_TTL_MS,
-        )
-        evict()
+    fun store(key: String, entries: List<TextMenuItem>, now: Long) = synchronized(lock) {
+        cells[key] = Cell(entries, degraded = false, storedAt = now, touchedAt = now)
+        trim()
     }
 
-    @Synchronized
-    fun putFailure(key: String, now: Long) {
-        entries[key] = Entry(
-            items = emptyList(),
-            failure = true,
-            issuedAt = now,
-            lifetime = FAILURE_TTL_MS,
-        )
-        evict()
+    fun markFailure(key: String, now: Long) = synchronized(lock) {
+        cells[key] = Cell(emptyList(), degraded = true, storedAt = now, touchedAt = now)
+        trim()
     }
 
-    @Synchronized
-    fun clear() {
-        entries.clear()
-    }
-
-    private fun evict() {
-        while (entries.size > CAPACITY) {
-            entries.remove(entries.keys.iterator().next())
+    private fun trim() {
+        while (cells.size > CAPACITY) {
+            val oldest = cells.minByOrNull { it.value.touchedAt }?.key ?: return
+            cells.remove(oldest)
         }
     }
 
     companion object {
-        const val CAPACITY = 8
         const val SUCCESS_TTL_MS = 30_000L
         const val FAILURE_TTL_MS = 5_000L
+        const val CAPACITY = 8
 
-        /** Order-sensitive: menu slots and display order depend on candidate order. */
-        internal fun fingerprint(candidates: List<Pair<String, String>>): String {
+        /** Order-sensitive fingerprint of the candidate list. */
+        fun fingerprint(candidates: List<Pair<String, String>>): String {
             val digest = MessageDigest.getInstance("SHA-256")
             candidates.forEach { (pkg, cls) ->
-                digest.update(pkg.toByteArray(Charsets.UTF_8))
-                digest.update(NUL)
-                digest.update(cls.toByteArray(Charsets.UTF_8))
-                digest.update(NUL)
+                digest.update(pkg.toByteArray())
+                digest.update(cls.toByteArray())
+                digest.update(0)
             }
             return digest.digest().joinToString("") { "%02x".format(it) }
         }
-
-        private val NUL = byteArrayOf(0)
     }
 }

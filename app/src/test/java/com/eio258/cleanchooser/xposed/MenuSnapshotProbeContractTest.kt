@@ -11,7 +11,7 @@ import org.junit.Test
 
 /**
  * Contract tests for the JVM-testable parts of the menu snapshot probe:
- * the classification memo (TTL, failure backoff, LRU eviction, fingerprint)
+ * the outcome cache (success TTL, failure backoff, LRU eviction, fingerprint)
  * and the snapshot encoding contract the probe's output must satisfy.
  */
 class MenuSnapshotProbeContractTest {
@@ -19,57 +19,57 @@ class MenuSnapshotProbeContractTest {
 
     @Test
     fun successEntrySurvivesFullTtlThenExpires() {
-        val memo = MenuPolicyMemo()
-        memo.put("k", items("Alpha", "Beta"), now = 1_000L)
+        val cache = ProbeOutcomeCache()
+        cache.store("k", items("Alpha", "Beta"), now = 1_000L)
 
-        assertNotNull(memo.get("k", now = 1_000L + MenuPolicyMemo.SUCCESS_TTL_MS - 1))
-        assertNull(memo.get("k", now = 1_000L + MenuPolicyMemo.SUCCESS_TTL_MS))
+        assertNotNull(cache.lookup("k", now = 1_000L + ProbeOutcomeCache.SUCCESS_TTL_MS - 1))
+        assertNull(cache.lookup("k", now = 1_000L + ProbeOutcomeCache.SUCCESS_TTL_MS))
     }
 
     @Test
     fun failureEntryBacksOffOnlyForShortWindow() {
-        val memo = MenuPolicyMemo()
-        memo.putFailure("k", now = 1_000L)
+        val cache = ProbeOutcomeCache()
+        cache.markFailure("k", now = 1_000L)
 
-        val backed = memo.get("k", now = 1_000L + MenuPolicyMemo.FAILURE_TTL_MS - 1)
+        val backed = cache.lookup("k", now = 1_000L + ProbeOutcomeCache.FAILURE_TTL_MS - 1)
         assertNotNull(backed)
-        assertTrue(backed!!.failure)
-        assertTrue(backed.items.isEmpty())
-        assertNull(memo.get("k", now = 1_000L + MenuPolicyMemo.FAILURE_TTL_MS))
+        assertTrue(backed!!.degraded)
+        assertTrue(backed.entries.isEmpty())
+        assertNull(cache.lookup("k", now = 1_000L + ProbeOutcomeCache.FAILURE_TTL_MS))
     }
 
     @Test
     fun expiredEntryIsRemovedSoSuccessBackoffCannotBeReused() {
-        val memo = MenuPolicyMemo()
-        memo.put("k", items("Alpha"), now = 0L)
-        assertNull(memo.get("k", now = MenuPolicyMemo.SUCCESS_TTL_MS))
+        val cache = ProbeOutcomeCache()
+        cache.store("k", items("Alpha"), now = 0L)
+        assertNull(cache.lookup("k", now = ProbeOutcomeCache.SUCCESS_TTL_MS))
         // Expiry must not leave a failure entry behind: a fresh probe is allowed.
-        assertNull(memo.get("k", now = MenuPolicyMemo.SUCCESS_TTL_MS + 1))
+        assertNull(cache.lookup("k", now = ProbeOutcomeCache.SUCCESS_TTL_MS + 1))
     }
 
     @Test
     fun lruEvictsEldestAndAccessRefreshesRecency() {
-        val memo = MenuPolicyMemo()
-        (1..MenuPolicyMemo.CAPACITY).forEach { index -> memo.put("k$index", items("i$index"), now = index.toLong()) }
-        memo.get("k1", now = 100L) // refresh k1, so k2 becomes the eldest
-        memo.put("k${MenuPolicyMemo.CAPACITY + 1}", items("new"), now = 200L)
+        val cache = ProbeOutcomeCache()
+        (1..ProbeOutcomeCache.CAPACITY).forEach { index -> cache.store("k$index", items("i$index"), now = index.toLong()) }
+        cache.lookup("k1", now = 100L) // refresh k1, so k2 becomes the eldest
+        cache.store("k${ProbeOutcomeCache.CAPACITY + 1}", items("new"), now = 200L)
 
-        assertNotNull(memo.get("k1", now = 201L))
-        assertNull(memo.get("k2", now = 201L))
-        assertEquals(MenuPolicyMemo.CAPACITY, memo.countEntries())
+        assertNotNull(cache.lookup("k1", now = 201L))
+        assertNull(cache.lookup("k2", now = 201L))
+        assertEquals(ProbeOutcomeCache.CAPACITY, cache.countEntries())
     }
 
     @Test
     fun fingerprintIsDeterministicOrderSensitiveAndKeyedPerCandidate() {
         val first = listOf("com.a" to "com.a.Main", "com.b" to "com.b.Main")
-        assertEquals(MenuPolicyMemo.fingerprint(first), MenuPolicyMemo.fingerprint(first))
+        assertEquals(ProbeOutcomeCache.fingerprint(first), ProbeOutcomeCache.fingerprint(first))
         assertNotEquals(
-            MenuPolicyMemo.fingerprint(first),
-            MenuPolicyMemo.fingerprint(first.reversed()),
+            ProbeOutcomeCache.fingerprint(first),
+            ProbeOutcomeCache.fingerprint(first.reversed()),
         )
         assertNotEquals(
-            MenuPolicyMemo.fingerprint(listOf("com.a" to "com.a.Main")),
-            MenuPolicyMemo.fingerprint(listOf("com.a" to "com.a.Other")),
+            ProbeOutcomeCache.fingerprint(listOf("com.a" to "com.a.Main")),
+            ProbeOutcomeCache.fingerprint(listOf("com.a" to "com.a.Other")),
         )
     }
 
@@ -99,17 +99,17 @@ class MenuSnapshotProbeContractTest {
 
         assertEquals(TextMenuSnapshot.MAX_ITEMS, decoded.size)
         assertTrue(decoded.all { it.title.length <= TextMenuSnapshot.MAX_TITLE })
-        // The probe relies on encode failing closed for oversized payloads.
+        // The probe relies on encode always producing a usable (possibly trimmed) payload.
         assertTrue(TextMenuSnapshot.encode(items).isNotEmpty())
         assertNull(TextMenuSnapshot.decode(null))
         assertNull(TextMenuSnapshot.decode("not-base64!!"))
     }
 }
 
-private fun MenuPolicyMemo.countEntries(): Int {
+private fun ProbeOutcomeCache.countEntries(): Int {
     var seen = 0
-    (1..MenuPolicyMemo.CAPACITY + 1).forEach { index ->
-        if (get("k$index", now = 250L) != null) seen++
+    (1..ProbeOutcomeCache.CAPACITY + 1).forEach { index ->
+        if (lookup("k$index", now = 250L) != null) seen++
     }
     return seen
 }

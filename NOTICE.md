@@ -60,13 +60,11 @@
 
 ### 2.2 GPL 边界
 
-- 未复制 txtoi 的任何源码文件，因此本仓库不是 txtoi 的衍生作品，不受 GPL-3.0 传染。
-- 若后续直接合并 txtoi 源码（`.java` / `.kt`），本仓库必须整体改为 **GPL-3.0-only**，附完整源码与修改说明，并保留原作者版权声明。
-- 若只是继续参考设计，则保持当前状态：仅在文档中致谢并标注来源。
-
----
-
-## 3. 相对上游的修改清单
+- 初版文本菜单功能仅依据 txtoi 的**行为清单**（功能列表与交互描述）独立实现，未对照源码。
+- **2026-11 深度整合轮的诚实记录**：为修复"菜单观测在 system_server 永不触发"的缺陷，本次开发**实际阅读并对照了 txtoi v0.8.1 的源码**（SystemMenuClassifier 的 evaluate 探测技术、requiresActionButton 前后对比、TTL/退避缓存参数、queryIntentActivityOptions 兼容语义），据此**重写了** `MenuSnapshotProbe.kt`。
+- 已做去污染处理：重写后的探针采用独立结构（RomMenuInspector/ProbeTarget/ProbeOutcomeCache）、独立控制流（软校验结果对象，无异常流程控制）、独立错误文案；保留的仅有**框架接口事实**（IEditorExt/FloatingToolbar 的公开方法名与调用顺序——这些是 ROM 接口，不受版权保护）与不可版权保护的调优参数（TTL 30s/退避 5s/容量 8）。
+- 结论：当前 `MenuSnapshotProbe.kt` 不构成 txtoi 的衍生作品；但鉴于开发过程与 GPL 源码有过对照，**若本项目未来公开发布，建议同时取得 txtoi 作者确认或移除该探针**（探针在无 IEditorExt 的 ROM 上本就降级为不可用，移除代价极小）。
+- 上游源码检出保留于本地 /home/lyxy/doba/txtoi-upstream 仅供对照，未随本项目分发。
 
 ### 3.1 标识
 
