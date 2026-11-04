@@ -67,7 +67,7 @@ data class ModuleConfig(
         require(modeOverrides.size <= IntentKind.entries.size && modeOverrides.keys.all { it.isSelectableEntryKind() })
         val validatedSpaces = userSpaces.mapValues { (_, space) -> space.validated() }
         val cleanRules = rules.asSequence()
-            .filter { it.kind.isSelectableEntryKind() || it.kind == IntentKind.SHORTCUT_ITEM }
+            .filter { it.kind.isSelectableEntryKind() }
             .map { rule ->
                 val normalized = SyntheticEntryKeys.normalizePackageScopedRule(rule)
                 ComponentRule.fromId(normalized.id) ?: normalized

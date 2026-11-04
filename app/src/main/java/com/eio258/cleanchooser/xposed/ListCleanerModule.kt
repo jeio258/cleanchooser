@@ -1562,14 +1562,6 @@ class ListCleanerModule : XposedModule() {
         return extension.takeIf { it.length in 1..16 && it.all { ch -> ch.isLetterOrDigit() } }
     }
 
-    private fun isSelectedCandidate(kind: IntentKind, activity: ActivityInfo, current: RuntimeRuleSnapshot, layer: Layer): Boolean {
-        val canonicalClass = com.eio258.cleanchooser.domain.ComponentIdentity.canonicalClassName(
-            activity.packageName, activity.name, activity.targetActivity
-        )
-        if ("${kind.name}|${activity.packageName}|$canonicalClass" in current.configured) return true
-        return false
-    }
-
     private fun transform(
         kind: IntentKind,
         values: List<*>,
@@ -1969,7 +1961,14 @@ class ListCleanerModule : XposedModule() {
         }
     }
 
-    @Synchronized private fun diagnostic(message: String, detail: Boolean = false) {
+    private fun diagnostic(message: String, detail: Boolean = false) {
+        // Fast path: diagnostics are usually off. Read the volatile snapshot without touching
+        // the monitor so hot resolver queries never contend on this lock.
+        if (!snapshot.diagnostic) return
+        diagnosticLocked(message, detail)
+    }
+
+    @Synchronized private fun diagnosticLocked(message: String, detail: Boolean = false) {
         if (!snapshot.diagnostic) return
         val now = SystemClock.elapsedRealtime()
         if (now - diagnosticWindow >= 5_000) {

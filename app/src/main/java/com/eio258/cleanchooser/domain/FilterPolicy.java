@@ -7,7 +7,7 @@ public final class FilterPolicy {
     /** Android UIDs embed the user/profile id in multiples of 100000. Classify by appId so
      * system/privileged callers in secondary users or work profiles are not mistaken for apps. */
     public static boolean ordinaryAppCaller(int callerUid) {
-        return AndroidUid.isApplicationUid(callerUid);
+        return AndroidUid.isApplicationUid(AndroidUid.appId(callerUid));
     }
 
     /** Candidate-preservation guard used by resolver filtering. Privileged/system callers are
@@ -25,7 +25,9 @@ public final class FilterPolicy {
         return !exported && !sameUid;
     }
 
+    /** Always false: an empty filtered resolver result is a valid user choice (upstream 84d179c0).
+     * Parameters are kept only for existing call sites; the veto behavior is permanently disabled. */
+    @Deprecated
     public static boolean restoreEmpty(String kind, int before, int after) {
-        // An empty filtered resolver result is a valid user choice (upstream 84d179c0 semantics).
         return false;
     }}

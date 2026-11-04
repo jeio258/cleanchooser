@@ -88,13 +88,13 @@ class RuleRepository(context: Context) {
     private val mutableRevision = MutableStateFlow(0L)
     val revision: StateFlow<Long> = mutableRevision.asStateFlow()
 
-    // ---- zh  ----
-    // zh  fail-open zh  Android zh hook zh 
-    // SHOW_ALL + zh /zh discovery zh  resolver zh 
-    // zh KEY_RULES zh  active zh 
-    // zh user_spaces_v1 zh  JSON Map<Int,UserSpaceRules>zh 
-    // zh  key=0zh  ModuleConfig.validated zh  1..99999 zh 
-    // ModuleConfig.userSpaces zh  0zh 
+    // ---- User space storage ----
+    // The hook reads top-level prefs with fail-open semantics; Android only delivers the
+    // hook process the prefs of the active space. SHOW_ALL + per-space discovery keeps the
+    // resolver consistent. KEY_RULES etc. always describe the active space.
+    // user_spaces_v1 stores a JSON Map<Int, UserSpaceRules>.
+    // Entry with key=0 is validated by ModuleConfig.validated against 1..99999 for new keys;
+    // ModuleConfig.userSpaces never contains 0.
     private val storedSpaces = mutableMapOf<Int, UserSpaceRules>().apply {
         prefs.getString(KEY_USER_SPACES, null)?.let { encoded ->
             if (encoded.length <= MAX_BACKUP_CHARS) runCatching {
@@ -116,13 +116,12 @@ class RuleRepository(context: Context) {
     init {
         val restored = prefs.getInt(KEY_ACTIVE_SPACE, 0)
         if (restored != 0 && storedSpaces.containsKey(restored)) {
-            // zh  active zh map zh 
-            // zh 
+            // Restore the stored active space and keep its snapshot in the map in sync.
             loadSpaceIntoFlows(requireNotNull(storedSpaces[restored]))
             mutableActiveSpace.value = restored
             storedSpaces[restored] = currentEditingSnapshot()
         } else {
-            // zh  map zh  0zh /zh
+            // No valid active space: fall back to the user-0 snapshot (create/repair it).
             storedSpaces[0] = currentEditingSnapshot()
         }
         // User 0 is the top-level legacy configuration per the hook contract; it must
@@ -223,7 +222,7 @@ class RuleRepository(context: Context) {
         prefs.edit().putString(KEY_USER_SPACES, encodeSpaces()).apply()
     }
 
-    /** zh  active zh  init zh  */
+    /** Persists the active space's top-level keys; called from init so a crash after restore keeps them. */
     private fun persistActiveSpaceKeys() {
         prefs.edit()
             .putStringSet(KEY_RULES, mutableRules.value.map(ComponentRule::id).toSet())
@@ -242,9 +241,8 @@ class RuleRepository(context: Context) {
     }
 
     /**
-     * zh  active zh  rules/priorities/openTypes/browserLinks zh 
-     * user_spaces_v1zh textMenuOrder zh 
-     * zh UserSpaceRules zh 
+     * Switching spaces swaps rules/priorities/openTypes/browserLinks in the flows.
+     * user_spaces_v1 and textMenuOrder stay untouched: they are per-UserSpaceRules sections.
      */
     @Synchronized fun switchSpace(userId: Int) {
         require(userId in 0..99999)
@@ -574,7 +572,7 @@ class RuleRepository(context: Context) {
 
     /** All six menu sections above in one SharedPreferences transaction and one revision. */
     @Synchronized fun resetMenuConfig() {
-        // zh  active zh  user_spaces_v1zh 
+        // Non-zero active space: reset only that space; user_spaces_v1 and user 0 stay intact.
         if (mutableActiveSpace.value != 0) {
             loadSpaceIntoFlows(UserSpaceRules())
             storedSpaces[mutableActiveSpace.value] = UserSpaceRules()

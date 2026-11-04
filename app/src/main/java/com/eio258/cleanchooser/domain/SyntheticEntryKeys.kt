@@ -8,7 +8,7 @@ object SyntheticEntryKeys {
     private const val SHORTCUT_MARKER = "#shortcut#"
     private const val DIRECT_SHARE_MARKER = "#direct#"
 
-    fun shortcutItemClass(activityClass: String?, shortcutId: String): String =
+    fun shortcutItemClass(shortcutId: String): String =
         "@entry" + SHORTCUT_MARKER + token(shortcutId)
 
     /** Canonicalizes older activity-qualified launcher shortcut keys without losing their ID hash. */

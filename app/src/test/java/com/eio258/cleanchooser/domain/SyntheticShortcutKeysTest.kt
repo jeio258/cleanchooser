@@ -7,26 +7,18 @@ import org.junit.Test
 class SyntheticShortcutKeysTest {
     @Test
     fun shortcut_item_key_is_stable() {
-        val first = SyntheticEntryKeys.shortcutItemClass("com.example.MainActivity", "scan")
-        val second = SyntheticEntryKeys.shortcutItemClass("com.example.MainActivity", "scan")
+        val first = SyntheticEntryKeys.shortcutItemClass("scan")
+        val second = SyntheticEntryKeys.shortcutItemClass("scan")
 
         assertEquals(first, second)
     }
 
     @Test
     fun different_shortcut_ids_are_distinct() {
-        val scan = SyntheticEntryKeys.shortcutItemClass("com.example.MainActivity", "scan")
-        val chat = SyntheticEntryKeys.shortcutItemClass("com.example.MainActivity", "new_chat")
+        val scan = SyntheticEntryKeys.shortcutItemClass("scan")
+        val chat = SyntheticEntryKeys.shortcutItemClass("new_chat")
 
         assertNotEquals(scan, chat)
-    }
-
-    @Test
-    fun same_shortcut_id_on_different_activities_is_identical() {
-        val first = SyntheticEntryKeys.shortcutItemClass("com.example.MainActivity", "scan")
-        val second = SyntheticEntryKeys.shortcutItemClass("com.example.SecondActivity", "scan")
-
-        assertEquals(first, second)
     }
 
     @Test

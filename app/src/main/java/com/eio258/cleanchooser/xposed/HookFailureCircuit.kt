@@ -25,6 +25,13 @@ internal class HookFailureCircuit(private val threshold: Int = 3) {
     }
 
     fun recordSuccess() {
-        if (!disabled.get() && consecutiveFailures.get() != 0) consecutiveFailures.set(0)
+        if (disabled.get()) return
+        // compareAndSet loop instead of get()-then-set(): a recordFailure that lands between
+        // the read and the clear must not be lost by an unconditional set(0).
+        while (true) {
+            val current = consecutiveFailures.get()
+            if (current == 0) return
+            if (consecutiveFailures.compareAndSet(current, 0)) return
+        }
     }
 }

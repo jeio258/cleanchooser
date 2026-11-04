@@ -3,9 +3,7 @@ package com.eio258.cleanchooser.data
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.LauncherApps
-import android.os.Process
 import android.os.UserHandle
-import android.util.Log
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.ComponentRule
 import com.eio258.cleanchooser.domain.IntentKind
@@ -14,52 +12,6 @@ import com.eio258.cleanchooser.domain.SyntheticEntryKeys
 
 /** Read-only, bounded active discovery; never starts a Chooser or sends content. */
 internal class UnifiedShortcutEngine(private val context: Context) {
-    /** Published shortcut snapshot; never confuses ShortcutInfo with components. */
-    fun scanPublished(): ShortcutDiscoveryResult {
-        val manager = context.getSystemService(LauncherApps::class.java)
-            ?: return ShortcutDiscoveryResult(ShortcutDiscoveryStatus.SERVICE_UNAVAILABLE)
-        if (!runCatching { manager.hasShortcutHostPermission() }.getOrDefault(false)) {
-            return ShortcutDiscoveryResult(
-                ShortcutDiscoveryStatus.HOST_PERMISSION_REQUIRED,
-                detail = "Shortcut host permission is not granted"
-            )
-        }
-        return try {
-            val query = LauncherApps.ShortcutQuery().setQueryFlags(
-                LauncherApps.ShortcutQuery.FLAG_MATCH_DYNAMIC or
-                    LauncherApps.ShortcutQuery.FLAG_MATCH_MANIFEST or
-                    LauncherApps.ShortcutQuery.FLAG_MATCH_PINNED or
-                    LauncherApps.ShortcutQuery.FLAG_MATCH_CACHED
-            )
-            val userId = Process.myUid() / 100000
-            val records = manager.getShortcuts(query, Process.myUserHandle()).orEmpty()
-                .map { shortcut ->
-                    PublishedShortcut(
-                        userId = userId,
-                        packageName = shortcut.`package`,
-                        shortcutId = shortcut.id,
-                        label = shortcut.shortLabel?.toString().orEmpty(),
-                        enabled = shortcut.isEnabled,
-                        manifest = shortcut.isDeclaredInManifest,
-                        dynamic = shortcut.isDynamic,
-                        pinned = shortcut.isPinned,
-                        cached = shortcut.isCached
-                    )
-                }.distinctBy { Triple(it.userId, it.packageName, it.shortcutId) }
-            ShortcutDiscoveryResult(ShortcutDiscoveryStatus.AVAILABLE, records)
-        } catch (error: SecurityException) {
-            ShortcutDiscoveryResult(
-                ShortcutDiscoveryStatus.HOST_PERMISSION_REQUIRED,
-                detail = error.javaClass.simpleName
-            )
-        } catch (error: Exception) {
-            Log.w("ShortcutDiscovery", "Read-only shortcut query failed", error)
-            ShortcutDiscoveryResult(
-                ShortcutDiscoveryStatus.QUERY_FAILED,
-                detail = error.javaClass.simpleName
-            )
-        }
-    }
 
 
     data class Result(
@@ -227,7 +179,7 @@ internal class UnifiedShortcutEngine(private val context: Context) {
         if (!PackageIdentity.valid(packageName) || id.isBlank() || id.length > 300) return null
         val identity = when (kind) {
             IntentKind.DIRECT_SHARE -> SyntheticEntryKeys.directShareClass(activity, id)
-            IntentKind.SHORTCUT_ITEM -> SyntheticEntryKeys.shortcutItemClass(activity, id)
+            IntentKind.SHORTCUT_ITEM -> SyntheticEntryKeys.shortcutItemClass(id)
             else -> return null
         }
         val rule = ComponentRule(kind, packageName, identity)
@@ -267,28 +219,4 @@ internal class UnifiedShortcutEngine(private val context: Context) {
         private const val FAILURE_BACKOFF_MILLIS = 45_000L
     }
 }
-
-/** A published ShortcutInfo is not a disableable Android component. */
-internal data class PublishedShortcut(
-    val userId: Int,
-    val packageName: String?,
-    val shortcutId: String?,
-    val label: String,
-    val enabled: Boolean,
-    val manifest: Boolean,
-    val dynamic: Boolean,
-    val pinned: Boolean,
-    val cached: Boolean,
-)
-
-internal enum class ShortcutDiscoveryStatus {
-    AVAILABLE, HOST_PERMISSION_REQUIRED, SERVICE_UNAVAILABLE, QUERY_FAILED
-}
-
-internal data class ShortcutDiscoveryResult(
-    val status: ShortcutDiscoveryStatus,
-    val shortcuts: List<PublishedShortcut> = emptyList(),
-    val detail: String = "",
-    val observedAt: Long = System.currentTimeMillis(),
-)
 

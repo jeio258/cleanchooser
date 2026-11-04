@@ -12,7 +12,7 @@ public final class ComponentStatePolicy {
         }
     }
     public static boolean valid(String pkg, String cls, int user) {
-        return user >= 0 && user <= 21474 && pkg != null && cls != null &&
+        return user >= 0 && user <= AndroidUid.MAX_USER_ID && pkg != null && cls != null &&
             pkg.length() <= 255 && cls.length() <= 512 &&
             pkg.matches("[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+") &&
             cls.matches("[A-Za-z_$][A-Za-z0-9_$]*(\\.[A-Za-z_$][A-Za-z0-9_$]*)+");

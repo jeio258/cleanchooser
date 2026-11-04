@@ -15,10 +15,12 @@ internal object HookCallIdentity {
         val explicitCallerUid: Boolean,
     )
 
-    private data class PackageQueryLayout(val user: Int, val caller: Int? = null)
+    // Single source of truth for PMS package-query parameter layouts. ManagerCallIdentity
+    // (SystemEntrySupport.kt) delegates here with a narrower name whitelist; keep both
+    // name sets in sync when adding layouts.
+    internal data class PackageQueryLayout(val user: Int, val caller: Int? = null)
 
-    /** Match AOSP query families explicitly; int flags, UID, PID and user IDs are not interchangeable. */
-    private fun packageQueryLayout(name: String, types: List<String>): PackageQueryLayout? {
+    internal fun packageQueryLayout(name: String, types: List<String>): PackageQueryLayout? {
         if (types.take(2) != listOf("android.content.Intent", "java.lang.String")) return null
         if (types.getOrNull(2) !in setOf("int", "long")) return null
         if (!name.endsWith("Internal")) {

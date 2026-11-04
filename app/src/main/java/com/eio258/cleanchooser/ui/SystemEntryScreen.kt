@@ -1,13 +1,11 @@
 package com.eio258.cleanchooser.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
@@ -20,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.state.ToggleableState
@@ -71,9 +68,13 @@ fun SystemEntryScreen(state: MainState, vm: MainViewModel) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 12.dp)
         ) {
             item(key = "status") {
-                SystemEntryBanner(
-                    ready = state.runtime.ready,
-                    hiddenCount = hiddenCount
+                StatusBanner(
+                    ok = state.runtime.ready,
+                    title = stringResource(
+                        if (state.runtime.ready) R.string.text_menu_observed
+                        else R.string.text_menu_saved_pending
+                    ),
+                    summary = stringResource(R.string.system_entry_hidden_hint, hiddenCount)
                 )
             }
             grouped.forEach { (kind, rows) ->
@@ -116,60 +117,6 @@ fun SystemEntryScreen(state: MainState, vm: MainViewModel) {
                 }
             }
         }
-    }
-}
-
-@Composable
-private fun SystemEntryBanner(ready: Boolean, hiddenCount: Int) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-            .background(
-                if (ready) colors.secondaryContainer.copy(alpha = 0.5f) else colors.surfaceContainerHigh,
-                AppShape.tile
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        androidx.compose.foundation.layout.Box(
-            Modifier.size(7.dp).background(
-                if (ready) colors.primary else colors.error,
-                androidx.compose.foundation.shape.CircleShape
-            )
-        )
-        Column(Modifier.weight(1f)) {
-            Text(
-                stringResource(
-                    if (ready) R.string.text_menu_observed else R.string.text_menu_saved_pending
-                ),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium
-            )
-            Text(
-                stringResource(R.string.system_entry_hidden_hint, hiddenCount),
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-private fun SectionLabel(title: String, hint: String) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
-        Text(
-            hint,
-            modifier = Modifier.padding(start = 8.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
     }
 }
 

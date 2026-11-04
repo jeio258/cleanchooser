@@ -17,53 +17,28 @@ import com.eio258.cleanchooser.domain.isPackageScopedEntry
 
 /**
  * Call-identity helpers the shared HookCallIdentity object does not expose yet.
- * The package query layout table mirrors upstream HookCallIdentity.packageQueryLayout; ideally
- * these two functions move into HookCallIdentity itself.
+ * Parameter layouts delegate to HookCallIdentity.packageQueryLayout (single source of truth);
+ * only the observed name whitelist lives here. Keep both name sets in sync when adding layouts.
  */
 internal object ManagerCallIdentity {
-    private data class PackageQueryLayout(val user: Int, val caller: Int? = null)
-
-    private fun packageQueryLayout(name: String, types: List<String>): PackageQueryLayout? {
-        if (types.take(2) != listOf("android.content.Intent", "java.lang.String")) return null
-        if (types.getOrNull(2) !in setOf("int", "long")) return null
-        if (!name.endsWith("Internal")) {
-            if (name !in setOf(
-                    "queryIntentActivities", "queryIntentActivitiesAsUser",
-                    "queryIntentServices", "queryIntentServicesAsUser",
-                    "queryIntentContentProviders", "queryIntentContentProvidersAsUser",
-                )
-            ) return null
-            return if (types.size == 4 && types[3] == "int") PackageQueryLayout(3) else null
-        }
-        val start = if (types.getOrNull(3) == "long") 4 else 3
-        val tail = types.drop(start)
-        val integers = tail.takeWhile { it == "int" }.size
-        if (tail.drop(integers).any { it != "boolean" }) return null
-        return when (name) {
-            "queryIntentActivitiesInternal" -> when {
-                integers == 1 && tail.size == 1 -> PackageQueryLayout(start)
-                integers == 2 && tail.size in setOf(2, 4) -> PackageQueryLayout(start + 1, start)
-                // Android 16 with an extra long prefix carries callerUid, pid, userId.
-                integers == 3 && tail.size == 5 ->
-                    PackageQueryLayout(start + 2, if (start == 3) start + 1 else start)
-                else -> null
-            }
-            "queryIntentServicesInternal" -> when {
-                start == 3 && integers in 2..3 && tail.size - integers in 1..2 ->
-                    PackageQueryLayout(start, start + 1)
-                else -> null
-            }
-            else -> null
-        }
-    }
+    private val packageQueryNames = setOf(
+        "queryIntentActivities", "queryIntentActivitiesAsUser",
+        "queryIntentServices", "queryIntentServicesAsUser",
+        "queryIntentContentProviders", "queryIntentContentProvidersAsUser",
+        "queryIntentActivitiesInternal", "queryIntentServicesInternal",
+    )
 
     /** A package query's target is never inferred from Binder UID: cross-user queries exist. */
     fun packageManagerTargetUserId(
         methodName: String,
         parameterTypeNames: List<String>,
         args: List<Any?>,
-    ): Int? = packageQueryLayout(methodName, parameterTypeNames)
-        ?.let { args.getOrNull(it.user) as? Int }?.takeIf { it in 0..21474 }
+    ): Int? {
+        if (methodName !in packageQueryNames) return null
+        val user = HookCallIdentity.packageQueryLayout(methodName, parameterTypeNames)?.user
+            ?: return null
+        return (args.getOrNull(user) as? Int)?.takeIf { it in 0..21474 }
+    }
 
     /** Public manager signatures carry the target user before or after selection flags. */
     fun managerTargetUserId(name: String, types: List<String>, args: List<Any?>): Int? {
@@ -88,6 +63,16 @@ internal fun selectedPackagesFor(policyIds: Set<String>, kind: IntentKind): Set<
         rule.packageName
     }.toSet()
 
+/**
+ * Single gate for component observations shared by RuntimeObservedEntryStore.observeComponent
+ * and SystemEntryObservations.componentRecord: the kind must be observable and component-scoped,
+ * and the component must form a valid rule.
+ */
+internal fun observableComponentRule(kind: IntentKind, component: ComponentName): ComponentRule? {
+    if (kind !in OBSERVABLE_ENTRY_KINDS || kind.isPackageScopedEntry()) return null
+    return ComponentRule(kind, component.packageName, component.className).takeIf { it.isValid() }
+}
+
 /** Record builders shared by the observing hooks. */
 internal object SystemEntryObservations {
     private const val MAX_LABEL_CHARS = ObservedEntryRecord.MAX_LABEL_CHARS
@@ -98,9 +83,7 @@ internal object SystemEntryObservations {
         label: String = "",
         userId: Int,
     ): ObservedEntryRecord? {
-        if (kind !in OBSERVABLE_ENTRY_KINDS || kind.isPackageScopedEntry()) return null
-        val rule = ComponentRule(kind, component.packageName, component.className)
-        if (!rule.isValid()) return null
+        val rule = observableComponentRule(kind, component) ?: return null
         return ObservedEntryRecord(
             kind = kind.name,
             packageName = rule.packageName,

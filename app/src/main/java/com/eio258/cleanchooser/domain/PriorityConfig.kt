@@ -10,7 +10,7 @@ data class PriorityConfig(
     fun validated(): PriorityConfig {
         require(apps.values.all { packages ->
             packages.size <= 200 && packages.distinct().size == packages.size &&
-                packages.all { it.isNotBlank() && it.length <= 255 && '|' !in it }
+                packages.all { it.isNotBlank() && it.length <= 255 && '|' !in it && PackageIdentity.valid(it) }
         }) { "invalid_priority_config" }
         // Residual variants from retired kinds are cleaned instead of rejecting the whole config.
         val cleanTitles = titles.filterKeys { key ->

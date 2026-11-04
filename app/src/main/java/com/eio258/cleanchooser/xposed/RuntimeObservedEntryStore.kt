@@ -2,11 +2,8 @@ package com.eio258.cleanchooser.xposed
 
 import android.content.ComponentName
 import android.content.pm.ShortcutInfo
-import com.eio258.cleanchooser.domain.ComponentRule
 import com.eio258.cleanchooser.domain.IntentKind
-import com.eio258.cleanchooser.domain.OBSERVABLE_ENTRY_KINDS
 import com.eio258.cleanchooser.domain.SyntheticEntryKeys
-import com.eio258.cleanchooser.domain.isPackageScopedEntry
 import java.util.LinkedHashMap
 
 internal data class ObservedRuntimeEntry(
@@ -37,9 +34,7 @@ internal object RuntimeObservedEntryStore {
     }
 
     fun observeComponent(kind: IntentKind, component: ComponentName, label: String = "", userId: Int) {
-        if (kind !in OBSERVABLE_ENTRY_KINDS || kind.isPackageScopedEntry()) return
-        val rule = ComponentRule(kind, component.packageName, component.className)
-        if (!rule.isValid()) return
+        val rule = observableComponentRule(kind, component) ?: return
         put(
             ObservedRuntimeEntry(
                 kind = kind,
@@ -59,7 +54,7 @@ internal object RuntimeObservedEntryStore {
         val targetClass = component?.className
         val synthetic = when (kind) {
             IntentKind.DIRECT_SHARE -> SyntheticEntryKeys.directShareClass(targetClass, shortcutId)
-            else -> SyntheticEntryKeys.shortcutItemClass(targetClass, shortcutId)
+            else -> SyntheticEntryKeys.shortcutItemClass(shortcutId)
         }
         put(
             ObservedRuntimeEntry(

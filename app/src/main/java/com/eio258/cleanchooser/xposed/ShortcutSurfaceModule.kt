@@ -121,7 +121,7 @@ class ShortcutSurfaceModule : XposedModule() {
 
         val filtered = if (policy.modeFor(IntentKind.SHORTCUT_ITEM) == DisplayMode.SHOW_ALL || selected.isEmpty()) values else values.filter { value ->
             val shortcut = value as? ShortcutInfo ?: return@filter true
-            val rule = shortcutRule(shortcut, shortcut.activity) ?: return@filter true
+            val rule = shortcutRule(shortcut) ?: return@filter true
             policy.modeFor(IntentKind.SHORTCUT_ITEM).includes(rule.id in selected, selected.isNotEmpty())
         }
         val ordered = if (priorities.isEmpty() || filtered.size < 2) filtered else prioritizeApps(
@@ -131,7 +131,7 @@ class ShortcutSurfaceModule : XposedModule() {
         )
         record("SHORTCUT_POLICY caller=${call.callingPackage} user=$userId mode=${policy.modeFor(IntentKind.SHORTCUT_ITEM)} " +
             "candidates=${values.size} parsed=${values.count { it is ShortcutInfo }} " +
-            "selected=${selected.size} matched=${values.count { item -> (item as? ShortcutInfo)?.let { shortcutRule(it, it.activity)?.id in selected } == true }} " +
+            "selected=${selected.size} matched=${values.count { item -> (item as? ShortcutInfo)?.let { shortcutRule(it)?.id in selected } == true }} " +
             "removed=${values.size - filtered.size} ordered=${ordered != values}")
         if (ordered == values) {
             original
@@ -239,10 +239,10 @@ class ShortcutSurfaceModule : XposedModule() {
         }
     }
 
-    private fun shortcutRule(shortcut: ShortcutInfo, component: ComponentName?): ComponentRule? {
+    private fun shortcutRule(shortcut: ShortcutInfo): ComponentRule? {
         val packageName = shortcut.`package`?.takeIf { it.isNotBlank() } ?: return null
         val shortcutId = shortcut.id?.takeIf { it.isNotBlank() } ?: return null
-        val synthetic = SyntheticEntryKeys.shortcutItemClass(component?.className, shortcutId)
+        val synthetic = SyntheticEntryKeys.shortcutItemClass(shortcutId)
         return ComponentRule(IntentKind.SHORTCUT_ITEM, packageName, synthetic).takeIf(ComponentRule::isValid)
     }
 

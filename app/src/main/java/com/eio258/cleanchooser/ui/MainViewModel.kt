@@ -925,6 +925,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (editable.isNotEmpty()) app.rules.setSelected(editable, false)
     }
 
+    /** One batched write for the Direct Share "restore all" action. */
+    fun restoreDirectShareAll(targets: Collection<ComponentRule>) {
+        if (!canEdit() || targets.isEmpty()) return
+        app.rules.setSelected(targets.distinct(), false)
+    }
+
     fun invertRules(
         rules: Collection<ComponentRule>,
         filter: IntentKind?,

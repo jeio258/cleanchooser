@@ -20,12 +20,13 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalClipboardManager
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -44,6 +45,7 @@ fun LogScreen(vm: MainViewModel) {
     val loading by vm.logsLoading.collectAsStateWithLifecycle()
     var tab by rememberSaveable { mutableIntStateOf(0) }
     val clipboard = LocalClipboardManager.current
+    val scope = rememberCoroutineScope()
 
     Column(Modifier.fillMaxSize()) {
         SegmentedTabs(
@@ -63,7 +65,8 @@ fun LogScreen(vm: MainViewModel) {
                 Icon(Icons.Rounded.Refresh, contentDescription = stringResource(R.string.logs_refresh))
             }
             IconButton(onClick = {
-                clipboard.setText(AnnotatedString((if (tab == 0) moduleLog else appLog).joinToString("\n")))
+                val text = (if (tab == 0) moduleLog else appLog).joinToString("\n")
+                clipboard.setText(AnnotatedString(text))
             }) {
                 Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.logs_copy))
             }

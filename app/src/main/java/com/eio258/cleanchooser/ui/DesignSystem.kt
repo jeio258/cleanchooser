@@ -30,6 +30,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -202,12 +205,19 @@ internal fun SelectionMark(
     val colors = MaterialTheme.colorScheme
     val on = state == androidx.compose.ui.state.ToggleableState.On
     val half = state == androidx.compose.ui.state.ToggleableState.Indeterminate
+    val selectedDescription = stringResource(
+        if (on || half) R.string.selection_mark_selected else R.string.selection_mark_not_selected
+    )
     Box(
         modifier
             .size(40.dp)
+            .semantics { stateDescription = selectedDescription }
             .then(
-                if (onClick != null) Modifier.clickable(enabled = enabled, onClick = onClick)
-                else Modifier
+                if (onClick != null) Modifier.clickable(
+                    enabled = enabled,
+                    role = Role.Checkbox,
+                    onClick = onClick
+                ) else Modifier
             ),
         contentAlignment = Alignment.Center
     ) {
@@ -255,6 +265,72 @@ internal fun EmptyHint(text: String, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
+}
+
+/** Shared status banner: one status dot plus a title and a one-line summary. */
+@Composable
+internal fun StatusBanner(
+    ok: Boolean,
+    title: String,
+    summary: String,
+    modifier: Modifier = Modifier,
+) {
+    val colors = MaterialTheme.colorScheme
+    Row(
+        modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+            .background(
+                if (ok) colors.secondaryContainer.copy(alpha = 0.5f) else colors.surfaceContainerHigh,
+                AppShape.tile
+            )
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Box(
+            Modifier.size(7.dp).background(
+                if (ok) colors.primary else colors.error,
+                androidx.compose.foundation.shape.CircleShape
+            )
+        )
+        Column(Modifier.weight(1f)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                summary,
+                style = MaterialTheme.typography.labelSmall,
+                color = colors.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Shared section header: a bold title with an optional one-line hint. */
+@Composable
+internal fun SectionLabel(
+    title: String,
+    hint: String? = null,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier.fillMaxWidth()
+            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(title, style = MaterialTheme.typography.titleSmall)
+        if (hint != null) {
+            Text(
+                hint,
+                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
 }
 
 @Composable

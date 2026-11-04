@@ -31,6 +31,7 @@ internal fun AppRow(
     onLock: () -> Unit,
     onUnlock: () -> Unit,
     rank: Int? = null,
+    kindTitles: Map<IntentKind, String> = emptyMap(),
 ) {
     val selectedCount = group.components.count { it.rule in selected }
     val selectionState = when {
@@ -38,17 +39,17 @@ internal fun AppRow(
         selectedCount == group.components.size -> ToggleableState.On
         else -> ToggleableState.Indeterminate
     }
-    val kindTitles = mutableListOf<String>()
-    for (kind in IntentKind.entries) {
-        if (group.components.any { it.rule.kind == kind }) kindTitles += stringResource(kind.titleRes())
-    }
+    val kinds = group.components.map { it.rule.kind }.toHashSet()
+    val kindsSummary = IntentKind.entries.filter { it in kinds }
+        .mapNotNull { kindTitles[it] }
+        .joinToString(" · ")
     AppEntryRow(
         title = group.appLabel,
         subtitle = stringResource(
             R.string.app_row_selection_summary,
             selectedCount,
             group.components.size,
-            kindTitles.joinToString(" · ")
+            kindsSummary
         ),
         icon = group.appIcon,
         checkState = selectionState,

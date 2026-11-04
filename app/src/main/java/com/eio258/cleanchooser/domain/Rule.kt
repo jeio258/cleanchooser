@@ -65,7 +65,7 @@ data class ComponentRule(val kind: IntentKind, val packageName: String, val clas
                     IntentKind.valueOf(parts[0]),
                     parts[1],
                     if (IntentKind.valueOf(parts[0]) == IntentKind.SHORTCUT_ITEM) SyntheticEntryKeys.canonicalShortcutClass(parts[2]) else if (parts[2].startsWith('.')) parts[1] + parts[2] else parts[2],
-                ).takeIf { it.isValid() && (it.kind.isSelectableEntryKind() || it.kind == IntentKind.SHORTCUT_ITEM) }
+                ).takeIf { it.isValid() && it.kind.isSelectableEntryKind() }
             }.getOrNull() else null
         }
     }
@@ -100,7 +100,7 @@ data class ComponentCandidate(
     fun matchesQuery(query: String): Boolean = matchesNormalizedQuery(query.trim().lowercase())
 
     /** Fast path for list filtering: normalize the search text once per search, not per item. */
-    fun matchesNormalizedQuery(needle: String): Boolean =
+    internal fun matchesNormalizedQuery(needle: String): Boolean =
         needle.isEmpty() || normalizedSearch.contains(needle)
 }
 

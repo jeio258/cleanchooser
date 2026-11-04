@@ -173,6 +173,8 @@ fun RulesList(
         else -> state.selected
     }
     val visibleRules = shownGroups.flatMap { it.components }.map { it.rule }.distinct()
+    // Resolved once per composition instead of per row (row subtitles only need these).
+    val kindTitles = IntentKind.entries.associateWith { stringResource(it.titleRes()) }
 
     val presetTitle = when {
         typedOpenPreset != null -> state.openTypes.localizedTitle(typedOpenPreset)
@@ -309,6 +311,7 @@ fun RulesList(
                     AppRow(
                         group = group,
                         selected = activeSelected,
+                        kindTitles = kindTitles,
                         lockState = if (deepLinkScoped) vm.bulkLockState(
                             lockScope,
                             group.packageName,

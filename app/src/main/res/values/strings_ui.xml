@@ -66,6 +66,8 @@
     <string name="direct_share_type_video">Video</string>
     <string name="direct_share_type_audio">Audio</string>
     <string name="direct_share_type_file">File</string>
+    <string name="selection_mark_selected">Selected</string>
+    <string name="selection_mark_not_selected">Not selected</string>
     <string name="space_this_device">This device</string>
     <string name="reset_default_scope_hint">Covers all 35 entry categories (including Direct Share, system entries, and the text menu); applies only to the currently selected space.</string>
     <string name="space_import_target_conflict">Import conflict: multiple source spaces map to the same target user (%1$s). Pick a different target for each source.</string>

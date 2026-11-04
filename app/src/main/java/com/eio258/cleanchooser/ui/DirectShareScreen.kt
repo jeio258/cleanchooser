@@ -37,8 +37,9 @@ import com.eio258.cleanchooser.domain.DirectShareTypeRules
 import com.eio258.cleanchooser.domain.IntentKind
 
 /**
- * Direct Share / XXXXXXXXXXX：XXXXX + XXXX + MIME XXX。
- * XXXXX DIRECT_SHARE XX（vm.toggle）；XXXXXXXXXXX，XXXXXXX。
+ * Direct Share targets: observed families + rule toggles + MIME family filter.
+ * Toggling hides/shows a target through [MainViewModel.toggle]; "restore all" clears
+ * every hidden target in one batched write via [MainViewModel.restoreDirectShareAll].
  */
 @Composable
 fun DirectShareScreen(state: MainState, vm: MainViewModel) {
@@ -54,7 +55,14 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
     val hiddenCount = rows.count { it.hidden }
 
     Column(Modifier.fillMaxSize()) {
-        StatusBanner(ready = state.runtime.ready, candidates = candidates.size, hiddenCount = hiddenCount)
+        StatusBanner(
+            ok = state.runtime.ready,
+            title = stringResource(
+                if (state.runtime.ready) R.string.direct_share_status_connected
+                else R.string.direct_share_status_waiting
+            ),
+            summary = stringResource(R.string.direct_share_summary, candidates.size, hiddenCount)
+        )
 
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
@@ -129,7 +137,9 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
 
         Surface(tonalElevation = 3.dp) {
             TextButton(
-                onClick = { rows.filter { it.hidden }.forEach { vm.toggle(it.candidate.rule) } },
+                onClick = {
+                    vm.restoreDirectShareAll(rows.filter { it.hidden }.map { it.candidate.rule })
+                },
                 enabled = hiddenCount > 0,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
@@ -170,43 +180,6 @@ private fun buildDirectShareRows(
         compareBy<DirectShareRow> { if (it.hidden) 1 else 0 }
             .thenBy { it.title.lowercase() }
     )
-}
-
-@Composable
-private fun StatusBanner(ready: Boolean, candidates: Int, hiddenCount: Int) {
-    val colors = MaterialTheme.colorScheme
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
-            .background(
-                if (ready) colors.secondaryContainer.copy(alpha = 0.5f) else colors.surfaceContainerHigh,
-                AppShape.tile
-            )
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        Box(
-            Modifier.size(7.dp).background(
-                if (ready) colors.primary else colors.error,
-                androidx.compose.foundation.shape.CircleShape
-            )
-        )
-        Column(Modifier.weight(1f)) {
-            Text(
-                if (ready) stringResource(R.string.direct_share_status_connected) else stringResource(R.string.direct_share_status_waiting),
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Medium
-            )
-            val summary = stringResource(
-                R.string.direct_share_summary, candidates, hiddenCount,
-            )
-            Text(
-                summary,
-                style = MaterialTheme.typography.labelSmall,
-                color = colors.onSurfaceVariant
-            )
-        }
-    }
 }
 
 @Composable

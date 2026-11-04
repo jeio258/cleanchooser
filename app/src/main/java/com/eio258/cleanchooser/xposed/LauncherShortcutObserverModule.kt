@@ -164,7 +164,7 @@ class LauncherShortcutObserverModule : XposedModule() {
                     ObservedEntryRecord(
                         kind = IntentKind.SHORTCUT_ITEM.name,
                         packageName = pkg,
-                        syntheticClass = SyntheticEntryKeys.shortcutItemClass(activity, id),
+                        syntheticClass = SyntheticEntryKeys.shortcutItemClass(id),
                         label = shortcut.shortLabel?.toString().orEmpty().take(160),
                         activityClass = activity,
                         observedAt = now,
