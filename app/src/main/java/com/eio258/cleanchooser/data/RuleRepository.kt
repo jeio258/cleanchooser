@@ -88,13 +88,13 @@ class RuleRepository(context: Context) {
     private val mutableRevision = MutableStateFlow(0L)
     val revision: StateFlow<Long> = mutableRevision.asStateFlow()
 
-    // ---- 多用户空间独立配置 ----
-    // 未配置空间的 fail-open 语义：任何没有独立配置的 Android 用户，hook 侧一律回退
-    // SHOW_ALL + 空规则（不做任何隐藏/过滤），discovery 本身不减少 resolver 候选。
-    // 存储口径：顶层分节键（KEY_RULES 等）始终镜像「当前 active 空间」，保证旧读取方与
-    // 进程重启恢复一致；user_spaces_v1 是本仓库自持的 JSON Map<Int,UserSpaceRules>，
-    // 允许 key=0（不受 ModuleConfig.validated 的 1..99999 约束），仅在组装
-    // ModuleConfig.userSpaces 时排除 0。
+    // ---- zh  ----
+    // zh  fail-open zh  Android zh hook zh 
+    // SHOW_ALL + zh /zh discovery zh  resolver zh 
+    // zh KEY_RULES zh  active zh 
+    // zh user_spaces_v1 zh  JSON Map<Int,UserSpaceRules>zh 
+    // zh  key=0zh  ModuleConfig.validated zh  1..99999 zh 
+    // ModuleConfig.userSpaces zh  0zh 
     private val storedSpaces = mutableMapOf<Int, UserSpaceRules>().apply {
         prefs.getString(KEY_USER_SPACES, null)?.let { encoded ->
             if (encoded.length <= MAX_BACKUP_CHARS) runCatching {
@@ -116,13 +116,13 @@ class RuleRepository(context: Context) {
     init {
         val restored = prefs.getInt(KEY_ACTIVE_SPACE, 0)
         if (restored != 0 && storedSpaces.containsKey(restored)) {
-            // 顶层分节键记录的是上次会话 active 空间的最新编辑；map 内条目可能是切走时的
-            // 旧值，因此先加载再以顶层键回填，避免重启丢失编辑。
+            // zh  active zh map zh 
+            // zh 
             loadSpaceIntoFlows(requireNotNull(storedSpaces[restored]))
             mutableActiveSpace.value = restored
             storedSpaces[restored] = currentSpaceSnapshot()
         } else {
-            // 始终保证 map 里存在空间 0（导入/导出全空间快照依赖该不变量）。
+            // zh  map zh  0zh /zh 
             storedSpaces[0] = currentSpaceSnapshot()
         }
     }
@@ -143,11 +143,11 @@ class RuleRepository(context: Context) {
     /**
      * Legacy ModuleConfig fields remain deserializable, but new remote snapshots always use defaults.
      *
-     * 组装口径：当前 active 空间占用顶层字段；userSpaces 携带其余全部空间（当前空间除外）。
-     * hook 侧按 Binder uid 解析 user id 后查 userSpaces，查不到的未配置空间 fail-open：
-     * SHOW_ALL + 空规则。已知限制：ModuleConfig.validated() 限制 userSpaces key ∈ 1..99999，
-     * 故 active != 0 时空间 0 的配置无法随 userSpaces 下发（user 0 回退顶层会命中当前空间）；
-     * 如需修复须放宽该校验后把下面的 `it != 0` 过滤去掉。
+     * zh  active zh userSpaces zh 
+     * hook zh  Binder uid zh  user id zh  userSpaceszh  fail-openzh 
+     * SHOW_ALL + zh ModuleConfig.validated() zh  userSpaces key ∈ 1..99999zh 
+     * zh  active != 0 zh  0 zh  userSpaces zh user 0 zh 
+     * zh  `it != 0` zh 
      */
     @Synchronized fun remoteSnapshot(): ModuleConfig {
         val active = currentSpaceSnapshot()
@@ -179,7 +179,7 @@ class RuleRepository(context: Context) {
         visibilityCompat = VisibilityCompatConfig(scopes = mutableVisibilityScopes.value.toSet())
     )
 
-    /** 把一个空间的配置载入现有 StateFlows；派生的 fullPackages 按空间重建（不持久化）。 */
+    /** zh  StateFlowszh  fullPackages zh  */
     private fun loadSpaceIntoFlows(space: UserSpaceRules) {
         mutableRules.value = space.rules.mapNotNull { ComponentRule.fromId(it.id) }.toSet()
         mutableMode.value = space.mode
@@ -202,7 +202,7 @@ class RuleRepository(context: Context) {
         ).apply()
     }
 
-    /** 顶层分节键始终镜像 active 空间，保证进程重启后 init 能恢复上次所在空间。 */
+    /** zh  active zh  init zh  */
     private fun persistActiveSpaceKeys() {
         prefs.edit()
             .putStringSet(KEY_RULES, mutableRules.value.map(ComponentRule::id).toSet())
@@ -221,9 +221,9 @@ class RuleRepository(context: Context) {
     }
 
     /**
-     * 切换编辑空间：当前 active 空间的 rules/priorities/openTypes/browserLinks 等存回
-     * user_spaces_v1，再载入目标空间并发布。textMenuOrder 当前为全局共享
-     * （UserSpaceRules 无对应字段，见交接说明），不随空间切换。
+     * zh  active zh  rules/priorities/openTypes/browserLinks zh 
+     * user_spaces_v1zh textMenuOrder zh 
+     * zh UserSpaceRules zh 
      */
     @Synchronized fun switchSpace(userId: Int) {
         require(userId in 0..99999)
@@ -534,7 +534,7 @@ class RuleRepository(context: Context) {
 
     /** All six menu sections above in one SharedPreferences transaction and one revision. */
     @Synchronized fun resetMenuConfig() {
-        // 只清当前 active 空间；其他空间的配置原样保留在 user_spaces_v1。
+        // zh  active zh  user_spaces_v1zh 
         if (mutableActiveSpace.value != 0) {
             loadSpaceIntoFlows(UserSpaceRules())
             storedSpaces[mutableActiveSpace.value] = UserSpaceRules()
@@ -874,7 +874,7 @@ class RuleRepository(context: Context) {
         )
         private const val LOCAL_PREFS = "rules_local"
         private const val KEY_INITIALIZED = "configuration_initialized"
-        /** 每空间独立配置：JSON Map<Int,UserSpaceRules>（允许 key=0）+ active 空间 id。 */
+        /** Per-space config: JSON Map<Int,UserSpaceRules> (key=0 allowed) + active space id. */
         const val KEY_USER_SPACES = "user_spaces_v1"
         const val KEY_ACTIVE_SPACE = "active_space_v1"
         private const val MAX_SPACES = 16
