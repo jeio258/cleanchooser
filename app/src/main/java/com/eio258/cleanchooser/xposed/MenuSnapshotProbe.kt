@@ -56,7 +56,6 @@ internal class MenuSnapshotProbe {
         logger?.invoke("MENU_PROBE_READY")
         return built
     }
-    }
 
     /** candidates: (packageName, className) of PROCESS_TEXT activities, in probe order. */
     @Synchronized
