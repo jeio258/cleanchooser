@@ -127,7 +127,8 @@ fun PriorityList(
                 UiFilter.HIDE_SELECTED -> PriorityListFilter.UNSELECTED
                 UiFilter.SHOW_SELECTED -> PriorityListFilter.SELECTED
             },
-            scopedExtraSelected
+            scopedExtraSelected,
+            catalogCandidates = state.candidates
         )
     }
     val lockFilteredGroups = if (viewFilter == UiFilter.LOCKED) {

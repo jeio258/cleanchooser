@@ -49,6 +49,19 @@ object PersistentComponentState {
         .toSet()
 }
 
+/** Commit outcome separating local durability from the best-effort remote mirror. */
+enum class ComponentPersistenceResult {
+    /** Local intent saved and mirrored to the Xposed service. */
+    COMMITTED,
+    /** Local intent saved; remote mirror failed and is retried on the next screen refresh. */
+    REMOTE_PENDING,
+    /** Local intent could not be persisted. */
+    LOCAL_FAILED;
+
+    val localSaved: Boolean get() = this != LOCAL_FAILED
+    val remoteSynced: Boolean get() = this == COMMITTED
+}
+
 /** Local source of truth plus a best-effort mirror into libxposed remote preferences. */
 class PersistentComponentStore(private val app: ListCleanerApp) {
     private val prefs = app.getSharedPreferences(PersistentComponentState.LOCAL_PREFS, Context.MODE_PRIVATE)
@@ -87,20 +100,25 @@ class PersistentComponentStore(private val app: ListCleanerApp) {
 
     /**
      * Update local intent first, then mirror the complete set to system_server's remote preferences.
-     * A remote write failure does not discard the local intent; the next screen refresh retries it.
+     * Local persistence is authoritative. A remote mirror failure is recoverable because the next
+     * synchronization transports the locally persisted set again.
      */
     @Synchronized
-    fun setDisabled(component: RootComponent, disabled: Boolean, priorOverride: Int? = null): Boolean {
+    fun setDisabled(component: RootComponent, disabled: Boolean, priorOverride: Int? = null): ComponentPersistenceResult {
         val key = PersistentComponentState.key(component.user, component.component)
         val next = disabledKeys().toMutableSet().apply {
             if (disabled) add(key) else remove(key)
         }.toSet()
         if (!prefs.edit().putStringSet(PersistentComponentState.LOCAL_KEY, next).commit()) {
             Log.e(TAG, "Failed to persist desired component state for $key")
-            return false
+            return ComponentPersistenceResult.LOCAL_FAILED
         }
         if (disabled) recordPrior(key, priorOverride) else clearPriors(listOf(key))
-        return syncRemote(next)
+        return if (syncRemote(next)) {
+            ComponentPersistenceResult.COMMITTED
+        } else {
+            ComponentPersistenceResult.REMOTE_PENDING
+        }
     }
 
     /**

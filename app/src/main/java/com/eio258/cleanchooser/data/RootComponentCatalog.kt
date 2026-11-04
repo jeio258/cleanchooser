@@ -13,6 +13,7 @@ import android.util.Log
 import androidx.core.graphics.drawable.toBitmap
 import com.eio258.cleanchooser.ListCleanerApp
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.domain.AndroidUid
 import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.ComponentStatePolicy
 import com.eio258.cleanchooser.domain.listCleanerAppType
@@ -66,7 +67,7 @@ data class RootComponentScan(
  */
 class RootComponentCatalog(private val context: Context) {
     private val pm = context.packageManager
-    private val user = Process.myUid() / PER_USER_RANGE
+    private val user = AndroidUid.userId(Process.myUid())
     private val icons = android.util.LruCache<String, Bitmap>(128)
     private val ownerLabels = android.util.LruCache<String, String>(256)
     private val flags = PackageManager.MATCH_DISABLED_COMPONENTS or

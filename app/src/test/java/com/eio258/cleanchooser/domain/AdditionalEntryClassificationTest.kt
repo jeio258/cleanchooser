@@ -32,7 +32,8 @@ class AdditionalEntryClassificationTest {
     @Test
     fun everyIntentKindHasMatchingVisibilityScope() {
         IntentKind.entries.forEach { kind ->
-            assertEquals(kind.name, VisibilityScope.forKind(kind).name)
+            val scope = VisibilityScope.forKind(kind)
+            assertEquals(kind.name, scope?.name)
         }
     }
 }

@@ -42,7 +42,6 @@ import com.eio258.cleanchooser.domain.VisibilityLayout
 import com.eio258.cleanchooser.domain.VisibilitySignature
 import com.eio258.cleanchooser.domain.VisibilityScope
 import kotlinx.serialization.json.Json
-import java.lang.reflect.Constructor
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.ConcurrentHashMap
@@ -54,10 +53,8 @@ import java.util.concurrent.atomic.AtomicLong
  * Third-party apps do not need LSPosed scope. Real package/component state is never changed.
  */
 class ListCleanerModule : XposedModule() {
-    private data class ListResult(val values: List<*>, val rebuild: (List<*>) -> Any?)
     private data class MethodAccessor(val method: Method?)
     private data class PackageNameAccessor(val getter: Method?, val field: Field?)
-    private data class ParceledListAccessor(val getList: Method, val constructor: Constructor<*>)
     private data class RuntimeTransfer(
         val callerUid: Int,
         val managerAppId: Int,
@@ -108,6 +105,7 @@ class ListCleanerModule : XposedModule() {
     private var suppressedDetails = 0L
     @Volatile private var nextPreferencePoll = 0L
     private val queryInProgress = ThreadLocal<Boolean>()
+    private val queryFaultCircuits = ConcurrentHashMap<String, HookFailureCircuit>()
     private val installedMethods = ConcurrentHashMap.newKeySet<String>()
     private val tracedActions = ConcurrentHashMap.newKeySet<String>()
     private val queryHits = AtomicLong()
@@ -116,7 +114,7 @@ class ListCleanerModule : XposedModule() {
     private val packagesForUidCache = ConcurrentHashMap<Class<*>, MethodAccessor>()
     private val packageNameAccessorCache = ConcurrentHashMap<Class<*>, PackageNameAccessor>()
     private val callerPackageFieldsCache = ConcurrentHashMap<Class<*>, List<Field>>()
-    private val parceledListAccessorCache = ConcurrentHashMap<Class<*>, ParceledListAccessor>()
+    private val listResults = SafeListResultExtractor(::record)
     private val preferences by lazy(LazyThreadSafetyMode.PUBLICATION) {
         getRemotePreferences(RuleRepository.REMOTE_PREFS)
     }
@@ -976,7 +974,9 @@ class ListCleanerModule : XposedModule() {
     }
 
     private fun queryHooker(layer: Layer) = XposedInterface.Hooker { chain ->
-        if (queryInProgress.get() == true) return@Hooker chain.proceed()
+        val methodId = "$layer:${chain.executable}"
+        val circuit = queryFaultCircuits.computeIfAbsent(methodId) { HookFailureCircuit() }
+        if (circuit.isDisabled() || queryInProgress.get() == true) return@Hooker chain.proceed()
         val callerUid = if (layer == Layer.SYSTEM) Binder.getCallingUid() else -1
         queryInProgress.set(true)
         try {
@@ -996,8 +996,11 @@ class ListCleanerModule : XposedModule() {
                 chain.proceed()
             }
             try {
-                processQuery(chain, original, layer, callerUid)
+                processQuery(chain, original, layer, callerUid).also { circuit.recordSuccess() }
             } catch (failure: Throwable) {
+                if (circuit.recordFailure()) {
+                    record("HOOK_DISABLED layer=$layer method=$methodId reason=consecutive_filter_failures")
+                }
                 diagnostic("FILTER_FAILED layer=$layer error=${failure.javaClass.name}; keeping original")
                 original
             }
@@ -1513,22 +1516,7 @@ class ListCleanerModule : XposedModule() {
         return if (replaced > 0) result to replaced else values to 0
     }
 
-    private fun extractListResult(original: Any?): ListResult? = when {
-        original is List<*> -> ListResult(original) { it }
-        original == null -> null
-        original.javaClass.name.endsWith("ParceledListSlice") -> extractParceledListSlice(original)
-        else -> null
-    }
-
-    private fun extractParceledListSlice(original: Any): ListResult? {
-        val accessor = parceledListAccessorCache.computeIfAbsent(original.javaClass) { clazz ->
-            val getList = clazz.getMethod("getList").apply { isAccessible = true }
-            val constructor = clazz.getDeclaredConstructor(List::class.java).apply { isAccessible = true }
-            ParceledListAccessor(getList, constructor)
-        }
-        val values = runCatching { accessor.getList.invoke(original) as? List<*> }.getOrNull() ?: return null
-        return ListResult(values) { accessor.constructor.newInstance(it) }
-    }
+    private fun extractListResult(original: Any?): SafeListResult? = listResults.extract(original)
 
     @Synchronized private fun initializePreferences() {
         if (listenerRegistered) return

@@ -22,7 +22,8 @@ enum class VisibilityScope {
     fun matches(kind: IntentKind): Boolean = this == ALL || name == kind.name
 
     companion object {
-        fun forKind(kind: IntentKind): VisibilityScope = valueOf(kind.name)
+        /** Kinds without a matching scope (e.g. system-managed surfaces) do not participate in hiding. */
+        fun forKind(kind: IntentKind): VisibilityScope? = entries.firstOrNull { it.name == kind.name }
     }
 }
 
@@ -59,12 +60,13 @@ data class VisibilityCompatConfig(
 fun deriveFullySelectedPackages(
     candidates: List<ComponentCandidate>,
     selected: Set<ComponentRule>
-): Map<VisibilityScope, Set<String>> = IntentKind.entries.associate { kind ->
+): Map<VisibilityScope, Set<String>> = IntentKind.entries.mapNotNull { kind ->
+    val scope = VisibilityScope.forKind(kind) ?: return@mapNotNull null
     val packages = candidates.asSequence()
         .filter { it.isCatalogCandidate && it.rule.kind == kind }
         .groupBy { it.rule.packageName }
         .filterValues { items -> items.isNotEmpty() && items.all { it.rule in selected } }
         .keys
         .toSet()
-    VisibilityScope.forKind(kind) to packages
-}.filterValues { it.isNotEmpty() }
+    scope to packages
+}.toMap().filterValues { it.isNotEmpty() }

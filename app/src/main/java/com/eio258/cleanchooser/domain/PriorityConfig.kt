@@ -12,12 +12,16 @@ data class PriorityConfig(
             packages.size <= 200 && packages.distinct().size == packages.size &&
                 packages.all { it.isNotBlank() && it.length <= 255 && '|' !in it }
         }) { "invalid_priority_config" }
-        require(titles.size <= 2_000 && titles.all { (key, value) ->
+        // Residual variants from retired kinds are cleaned instead of rejecting the whole config.
+        val cleanTitles = titles.filterKeys { key ->
+            runCatching { IntentKind.valueOf(key.substringBefore('|')) }.getOrNull() != null
+        }
+        require(cleanTitles.size <= 2_000 && cleanTitles.all { (key, value) ->
             val parsed = ComponentRule.fromId(key)
             parsed != null && parsed.id == key && value.isNotBlank() && value.length <= 64 &&
                 value.none { it.isISOControl() }
         }) { "invalid_component_title_config" }
-        return this
+        return if (cleanTitles.size == titles.size) this else copy(titles = cleanTitles)
     }
 }
 

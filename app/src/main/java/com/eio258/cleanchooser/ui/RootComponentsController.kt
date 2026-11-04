@@ -4,6 +4,7 @@ import android.util.Log
 import com.eio258.cleanchooser.ListCleanerApp
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.AppLog
+import com.eio258.cleanchooser.data.ComponentPersistenceResult
 import com.eio258.cleanchooser.data.ComponentRootCommand
 import com.eio258.cleanchooser.data.PersistentComponentState
 import com.eio258.cleanchooser.data.PersistentComponentStore
@@ -114,7 +115,10 @@ internal class RootComponentsController(
                         result = withContext(NonCancellable) { catalog.change(target, enable) }
                         // Persist only after Android confirms the requested state. This makes the
                         // checkbox a durable policy instead of a one-shot `pm disable` command.
-                        persistentComponents.setDisabled(target, disabled = !enable, target.overrideState)
+                        handlePersistenceResult(
+                            persistentComponents.setDisabled(target, disabled = !enable, target.overrideState),
+                            target
+                        )
                         completedTargets += target
                     }
                     mutableMessage.value = if (targets.size == 1) {
@@ -257,7 +261,10 @@ internal class RootComponentsController(
                         )
                         val enable = target.enabled == false
                         withContext(NonCancellable) { catalog.change(target, enable) }
-                        persistentComponents.setDisabled(target, disabled = !enable, target.overrideState)
+                        handlePersistenceResult(
+                            persistentComponents.setDisabled(target, disabled = !enable, target.overrideState),
+                            target
+                        )
                         completedTargets += target
                     }
                     mutableMessage.value = app.getString(R.string.root_batch_inverted, completedTargets.size)
@@ -284,6 +291,22 @@ internal class RootComponentsController(
                     mutableBusy.value = false
                 }
             }
+        }
+    }
+
+    /**
+     * Only LOCAL_FAILED is a real failure: the durable intent could not be saved. REMOTE_PENDING
+     * means the local intent is saved and the remote mirror is retried on the next refresh.
+     */
+    private fun handlePersistenceResult(result: ComponentPersistenceResult, target: RootComponent) {
+        when (result) {
+            ComponentPersistenceResult.LOCAL_FAILED -> {
+                Log.e(TAG, "Local persistence failed for ${target.id}")
+                AppLog.event("persist FAILED: ${target.id}")
+            }
+            ComponentPersistenceResult.REMOTE_PENDING ->
+                AppLog.event("persist remote pending: ${target.id}")
+            ComponentPersistenceResult.COMMITTED -> Unit
         }
     }
 

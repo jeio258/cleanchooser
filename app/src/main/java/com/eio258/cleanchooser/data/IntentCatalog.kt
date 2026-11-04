@@ -75,6 +75,7 @@ class IntentCatalog(private val context: Context) {
     private val appIconCache = LruCache<String, Bitmap>(192)
     private val appLabelCache = LruCache<String, String>(256)
     @Volatile private var cachedDefinitionFingerprint: String? = null
+    @Volatile private var lastCompletedScanElapsedMs: Long = 0L
     @Volatile private var invalidated = true
     @Volatile private var cacheHitsSinceLastScan = 0L
     @Volatile var lastReport: String = "Not scanned"
@@ -122,7 +123,13 @@ class IntentCatalog(private val context: Context) {
             "|declaredHandlers=" + discoveryFingerprint +
             "|declaredPackages=" + packageFingerprint
         val cached = mutableCandidates.value
-        if (!force && !invalidated && cached.isNotEmpty() && fingerprint == cachedDefinitionFingerprint) {
+        // Cache hits require a matching fingerprint AND a fresh scan: a 30s TTL keeps
+        // state refreshes cheap while guaranteeing the catalog re-probes PackageManager
+        // state shortly after any external change.
+        if (!force && !invalidated && cached.isNotEmpty() &&
+            fingerprint == cachedDefinitionFingerprint &&
+            android.os.SystemClock.elapsedRealtime() - lastCompletedScanElapsedMs < CACHE_MAX_AGE_MS
+        ) {
             cacheHitsSinceLastScan++
             return@withContext cached
         }
@@ -182,8 +189,15 @@ class IntentCatalog(private val context: Context) {
         lastReport = report.toString()
         if (failures > 0) scanWarning = context.getString(R.string.catalog_partial_scan_failed, failures)
         mutableCandidates.value = result
-        cachedDefinitionFingerprint = fingerprint
-        invalidated = false
+        // An incomplete scan must not poison the cache: publish this result only,
+        // and force the next scan to re-run instead of reusing partial output.
+        if (failures == 0) {
+            cachedDefinitionFingerprint = fingerprint
+            lastCompletedScanElapsedMs = android.os.SystemClock.elapsedRealtime()
+            invalidated = false
+        } else {
+            invalidated = true
+        }
         result
     }
 
@@ -496,6 +510,7 @@ class IntentCatalog(private val context: Context) {
             }.sortedWith(compareBy({ it.rule.kind.ordinal }, { it.appLabel.lowercase() }, { it.rule.id }))
 
         private const val MAX_APP_LINK_FALLBACK_PAIRS = 256
+        private const val CACHE_MAX_AGE_MS = 30_000L
         private val APP_LINK_FALLBACK_PATHS = listOf(
             "/",
             "/a",
