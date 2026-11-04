@@ -26,6 +26,8 @@ object DiagnosticCollector {
     private const val MAX_TEXT_BYTES = 8 * 1024 * 1024
     private const val MAX_LSPOSED_FILES = 12
     private const val MAX_LSPOSED_FILE_BYTES = 4 * 1024 * 1024
+    private const val MAX_MULTIUSER_LOGCAT_USERS = 8
+    private const val MAX_MULTIUSER_LOGCAT_BYTES = 2 * 1024 * 1024
 
     suspend fun collect(context: Context, state: MainState, components: com.eio258.cleanchooser.data.RootComponentScan? = null, componentOperation: String = "not_observed"): File = runInterruptible(Dispatchers.IO) {
         val output = File.createTempFile("ListCleaner-diagnostic-", ".zip", context.cacheDir)
@@ -106,12 +108,37 @@ object DiagnosticCollector {
                         "sed -n '1,40p' \"\$d/module.prop\" 2>/dev/null; done"
                 ))
                 addRecentLsposedLogs(zip)
+                addMultiUserLogcats(zip)
                 zip.addText("collection-finished.txt", "finishedAt=${Instant.now()}\n")
             }
             output
         } catch (failure: Throwable) {
             output.delete()
             throw failure
+        }
+    }
+
+    /**
+     * Bounded per-user logcat capture (upstream 92e864c9/cefad37f): enumerate Android users via
+     * `cmd user list`, then dump each user's buffers with `logcat --user N`. Failures are recorded
+     * per entry, never thrown; unsupported logcat versions simply yield a failed capture.
+     */
+    private fun addMultiUserLogcats(zip: ZipOutputStream) {
+        val listing = root("cmd user list", 64 * 1024)
+        zip.addCapture("logcat/users.txt", listing)
+        val userIds = listing.bytes.toString(StandardCharsets.UTF_8)
+            .lineSequence()
+            .mapNotNull { line -> Regex("UserInfo\\{(\\d+):").find(line)?.groupValues?.get(1)?.toIntOrNull() }
+            .distinct()
+            .take(MAX_MULTIUSER_LOGCAT_USERS)
+            .toList()
+        zip.addText(
+            "logcat/users-summary.txt",
+            "enumerated=${userIds.size} limit=$MAX_MULTIUSER_LOGCAT_USERS ids=${userIds.joinToString()}\n"
+        )
+        userIds.forEach { userId ->
+            val capture = root("logcat -d -v threadtime -b all --user $userId", MAX_MULTIUSER_LOGCAT_BYTES)
+            zip.addCapture("logcat/user-" + userId.toString().padStart(2, '0') + ".txt", capture)
         }
     }
 

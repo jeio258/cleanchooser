@@ -52,4 +52,13 @@
     <string name="root_batch_restored">已恢复 %1$d 个组件的系统默认状态</string>
     <string name="root_component_restored">已恢复「%1$s」的系统默认状态</string>
     <string name="root_component_already_default">该组件已处于系统默认状态</string>
+
+    <string name="root_batch_cancelled">已处理 %1$d/%2$d（已取消）</string>
+    <string name="root_batch_stop_remaining">停止后续操作</string>
+    <string name="root_batch_skipped">完成 %1$d/%2$d（跳过 %3$d）</string>
+
+    <string name="root_system_app_warning_title">批量操作包含系统应用</string>
+    <string name="root_system_app_warning_body">所选目标包含系统应用组件，禁用可能导致磁贴、小部件或功能入口异常。已完成部分不会回滚。</string>
+    <string name="root_system_app_warning_confirm">继续</string>
+    <string name="root_system_app_warning_cancel">取消</string>
 </resources>

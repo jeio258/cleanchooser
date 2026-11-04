@@ -58,7 +58,7 @@ enum class Destination(val icon: androidx.compose.ui.graphics.vector.ImageVector
     STATUS(Icons.Rounded.Dashboard)
 }
 
-enum class WorkbenchTab { RULES, PRIORITY, COMPONENTS, TEXT }
+enum class WorkbenchTab { RULES, PRIORITY, COMPONENTS, TEXT, DIRECT_SHARE, SYSTEM_ENTRY }
 
 /**
  * Filter state shared by the three workbench segments. Rules and priority share the
@@ -124,10 +124,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val componentBusy = rootComponents.busy
     val componentMessage = rootComponents.message
     val componentRootNotice = rootComponents.rootNotice
+    val componentBatchProgress = rootComponents.batchProgress
     val bulkLockRevision: StateFlow<Long> = bulkLocks.revision
 
     fun dismissComponentRootNotice() = rootComponents.dismissRootNotice()
     fun refreshComponents() = rootComponents.refresh()
+    fun cancelComponentBatch() = rootComponents.cancelBatch()
 
     fun changeComponent(target: RootComponent, enable: Boolean) = rootComponents.change(target, enable)
     fun changeComponents(targets: List<RootComponent>, enable: Boolean) = rootComponents.change(targets, enable)
@@ -482,6 +484,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MainState())
 
     init {
+        com.eio258.cleanchooser.data.DefaultsMigration.migrateShowAllToHideSelected(app, app.rules)
         viewModelScope.launch {
             app.serviceSession.collectLatest { session ->
                 val status = moduleRuntime.readStatus(session)
@@ -510,6 +513,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (!canEdit()) return
         app.rules.setCustomOpenDefinition(preset, definition)
         refresh()
+    }
+
+    private val specialEntryDiscovery by lazy {
+        com.eio258.cleanchooser.data.SpecialEntryDiscovery(getApplication())
     }
 
     fun refresh(forceCatalog: Boolean = false) {
@@ -541,7 +548,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val updatedConfigured = app.rules.rules.value +
                         app.rules.openTypes.value.rules.values.flatten().mapNotNull(ComponentRule::fromId) +
                         app.rules.browserLinks.value.rules.values.flatten().mapNotNull(ComponentRule::fromId)
-                    candidates.value = app.catalog.completeConfigured(result, updatedConfigured)
+                    val base = app.catalog.completeConfigured(result, updatedConfigured)
+                    // System entry surfaces (settings/VPN/IME/...) join the same candidate space,
+                    // deduplicated by rule id against the resolver candidates.
+                    val special = runCatching { specialEntryDiscovery.scan() }.getOrDefault(emptyList())
+                    candidates.value = base + special.filter { special ->
+                        base.none { it.rule.id == special.rule.id }
+                    }
                     error.value = app.catalog.scanWarning
                 }
             } catch (cancelled: CancellationException) {
@@ -597,6 +610,27 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     /** Components this app disabled; a restore may only touch these. */
     val disabledComponentKeys: StateFlow<Set<String>> = rootComponents.disabledKeys
+
+    // Multi-user space selector (clones / work profiles). Empty or single-space hides the bar.
+    private val spaceManager = com.eio258.cleanchooser.data.UserSpaceManager(application)
+
+    val spaceSelectorItems: StateFlow<List<com.eio258.cleanchooser.data.UserSpace>> =
+        kotlinx.coroutines.flow.combine(spaceManager.spaces, app.rules.activeSpace) { spaces, active ->
+            listOf(com.eio258.cleanchooser.data.UserSpace(0, "user 0")) +
+                spaces.filter { it.userId != 0 }
+        }.stateIn(
+            viewModelScope,
+            kotlinx.coroutines.flow.SharingStarted.Eagerly,
+            emptyList()
+        )
+    val activeSpaceId: StateFlow<Int> = app.rules.activeSpace
+
+    fun switchSpace(userId: Int) {
+        viewModelScope.launch {
+            runCatching { app.rules.switchSpace(userId) }
+            refresh()
+        }
+    }
 
     private fun restoreSection(message: () -> String, action: () -> Unit) {
         val result = message()
@@ -1100,8 +1134,34 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         detailTarget = null
         destination.value = Destination.WORKBENCH
     }
-    fun exportJson(): String = app.rules.exportJson()
-    fun importJson(content: String) = app.rules.importJson(content)
+    /**
+     * Wraps the rule JSON (unchanged v11 format, unknown keys are ignored by older builds) with
+     * manager-only bulk-action locks. The wrapper marks its own [KEY_LOCK_BACKUP_VERSION] so the
+     * lock section can evolve independently of [com.eio258.cleanchooser.data.RuleRepository].
+     */
+    fun exportJson(): String {
+        val backup = org.json.JSONObject(app.rules.exportJson())
+        backup.put(KEY_LOCK_BACKUP_VERSION, 1)
+        backup.put(KEY_BULK_ACTION_LOCKS, org.json.JSONArray().apply {
+            bulkLocks.exportSnapshot().sorted().forEach { put(it) }
+        })
+        return backup.toString(2).also { require(it.length <= MAX_BACKUP_CHARS) }
+    }
+
+    fun importJson(content: String) {
+        require(content.length <= MAX_BACKUP_CHARS)
+        val backup = org.json.JSONObject(content)
+        val locks = if (backup.has(KEY_BULK_ACTION_LOCKS)) {
+            val array = backup.optJSONArray(KEY_BULK_ACTION_LOCKS)
+                ?: error("Invalid bulk-action locks")
+            require(array.length() <= MAX_BACKUP_LOCK_ENTRIES)
+            List(array.length()) { index -> array.getString(index) }
+        } else {
+            null
+        }
+        app.rules.importJson(content)
+        if (locks != null) bulkLocks.restoreSnapshot(locks.toSet()) else bulkLocks.reloadFromDisk()
+    }
     fun setComponentTitle(ruleId: String, title: String?) {
         if (canEdit()) app.rules.setComponentTitle(ruleId, title)
     }
@@ -1175,6 +1235,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     companion object {
         const val MAX_BACKUP_CHARS = RuleRepository.MAX_BACKUP_CHARS
+        private const val KEY_LOCK_BACKUP_VERSION = "lockBackupVersion"
+        private const val KEY_BULK_ACTION_LOCKS = "bulkActionLocks"
+        private const val MAX_BACKUP_LOCK_ENTRIES = 20_000
         private val MODULE_LOG_TAGS = listOf(
             "ListCleaner.Diagnostic", "ListCleaner.ComponentGuard",
             "ListCleaner.DiscoveryFilter", "ListCleaner.Root", "ListCleaner.ComponentStore",

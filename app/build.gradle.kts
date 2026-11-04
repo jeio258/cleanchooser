@@ -31,7 +31,7 @@ check(signingValues.all { it == null } || hasReleaseSigning) {
 // Hook compatibility is intentionally independent from the APK release version.
 // Keep this value unchanged for UI/resources/manager-only releases. Bump it to the
 // current versionCode only when xposed/** or a contract used by hooked processes changes.
-val hookCompatVersionCode = 44
+val hookCompatVersionCode = 45
 
 android {
     namespace = "com.eio258.cleanchooser"
@@ -43,8 +43,8 @@ android {
         applicationId = "com.eio258.cleanchooser"
         minSdk = 31
         targetSdk = 37
-        versionCode = 44
-        versionName = "1.6.19"
+        versionCode = 45
+        versionName = "1.6.20"
         buildConfigField("long", "HOOK_COMPAT_VERSION_CODE", "${hookCompatVersionCode}L")
 
         if (ciArm64Only) {

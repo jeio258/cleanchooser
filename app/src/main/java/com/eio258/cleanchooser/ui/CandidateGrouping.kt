@@ -5,6 +5,8 @@ import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.ComponentRule
 import com.eio258.cleanchooser.domain.IntentKind
+import com.eio258.cleanchooser.domain.PINYIN_AWARE_SORT
+import com.eio258.cleanchooser.domain.displayNameComparator
 import com.eio258.cleanchooser.domain.normalizeBrowserHost
 
 data class AppGroup(
@@ -36,6 +38,9 @@ internal fun baseAppGroups(candidates: List<ComponentCandidate>): List<AppGroup>
         )
     }
 
+/** Created once per sort pass; orders Han labels by Mandarin pinyin when [PINYIN_AWARE_SORT] is on. */
+private val pinyinLabelComparator = displayNameComparator()
+
 internal fun filterAppGroups(
     groups: List<AppGroup>,
     selected: Set<ComponentRule>,
@@ -57,7 +62,10 @@ internal fun filterAppGroups(
     if (matching.isEmpty()) null else group.copy(components = matching)
 }.sortedWith(
     compareBy<AppGroup> { appSelectionRank(it, selected) }
-        .thenBy { it.components.firstOrNull()?.normalizedAppLabel ?: it.appLabel.lowercase() }
+        .then(
+            if (PINYIN_AWARE_SORT) compareBy(pinyinLabelComparator) { it.appLabel }
+            else compareBy { it.components.firstOrNull()?.normalizedAppLabel ?: it.appLabel.lowercase() }
+        )
         .thenBy { it.packageName }
 )
 

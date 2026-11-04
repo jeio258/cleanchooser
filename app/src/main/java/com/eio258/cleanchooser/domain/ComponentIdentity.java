@@ -12,7 +12,9 @@ public final class ComponentIdentity {
     private ComponentIdentity() {}
 
     public static String canonicalClassName(String packageName, String name, String targetActivity) {
-        String chosen = targetActivity == null || targetActivity.trim().isEmpty() ? name : targetActivity;
+        // An activity-alias is an independent component; its target is metadata only
+        // (upstream e28d0b75 semantics, user-confirmed).
+        String chosen = name;
         if (chosen == null) return "";
         chosen = chosen.trim();
         if (chosen.startsWith(".")) return packageName + chosen;

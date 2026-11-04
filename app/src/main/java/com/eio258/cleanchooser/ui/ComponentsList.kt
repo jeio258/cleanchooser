@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -19,7 +20,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.state.ToggleableState
@@ -28,6 +31,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.data.RootComponent
+import com.eio258.cleanchooser.domain.AppType
 
 @StringRes
 private fun componentKindHelpRes(kind: CleanupKind?): Int = when (kind) {
@@ -61,6 +65,38 @@ fun ComponentsList(
     val message by vm.componentMessage.collectAsStateWithLifecycle()
     val rootNotice by vm.componentRootNotice.collectAsStateWithLifecycle()
     val bulkLockRevision by vm.bulkLockRevision.collectAsStateWithLifecycle()
+    val batchProgress by vm.componentBatchProgress.collectAsStateWithLifecycle()
+
+    // Confirmed system-app batch action, held until the user accepts the safety warning.
+    var pendingSystemBatch by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    fun runBatch(targets: List<RootComponent>, action: (List<RootComponent>) -> Unit) {
+        if (busy) return
+        if (targets.any { it.appType == AppType.SYSTEM }) {
+            pendingSystemBatch = { action(targets) }
+        } else {
+            action(targets)
+        }
+    }
+
+    pendingSystemBatch?.let { action ->
+        AlertDialog(
+            onDismissRequest = { pendingSystemBatch = null },
+            title = { Text(stringResource(R.string.root_system_app_warning_title)) },
+            text = { Text(stringResource(R.string.root_system_app_warning_body)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingSystemBatch = null
+                    action()
+                }) { Text(stringResource(R.string.root_system_app_warning_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingSystemBatch = null }) {
+                    Text(stringResource(R.string.root_system_app_warning_cancel))
+                }
+            }
+        )
+    }
 
     rootNotice?.let { notice ->
         ModalBottomSheet(
@@ -144,8 +180,8 @@ fun ComponentsList(
             viewOptions = UiFilter.entries,
             helpText = helpText,
             loading = busy,
-            onSelectAll = { vm.changeComponentsBulk(kind, visible, enable = false) },
-            onInvert = { vm.invertComponentsBulk(kind, visible) }
+            onSelectAll = { runBatch(visible) { vm.changeComponentsBulk(kind, it, enable = false) } },
+            onInvert = { runBatch(visible) { vm.invertComponentsBulk(kind, it) } }
         )
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -164,6 +200,11 @@ fun ComponentsList(
                         )
                     }
                     message?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                    if (busy && batchProgress != null) {
+                        TextButton(onClick = vm::cancelComponentBatch) {
+                            Text(stringResource(R.string.root_batch_stop_remaining))
+                        }
+                    }
                 }
             }
 
@@ -211,10 +252,12 @@ fun ComponentsList(
                         checkState = selectionState,
                         onCheck = {
                             if (!busy && editableComponents.isNotEmpty()) {
-                                vm.changeComponents(
-                                    editableComponents,
-                                    selectionState == ToggleableState.On
-                                )
+                                runBatch(editableComponents) { targets ->
+                                    vm.changeComponents(
+                                        targets,
+                                        selectionState == ToggleableState.On
+                                    )
+                                }
                             }
                         },
                         lockState = vm.componentBulkLockState(kind, appKey, lockItems),

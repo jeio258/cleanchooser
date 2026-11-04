@@ -47,4 +47,7 @@
     <string name="app_version_format">%1$s v%2$s</string>
     <string name="list_header_help">About this list</string>
     <string name="list_summary_format">%1$s · %2$s</string>
+    <string name="workbench_direct_share">Direct share</string>
+    <string name="workbench_system_entry">System entries</string>
+    <string name="system_entry_hidden_hint">%1$d system entries hidden; toggles affect the settings lists only, never the service components</string>
 </resources>

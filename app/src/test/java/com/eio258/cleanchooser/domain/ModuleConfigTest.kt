@@ -49,7 +49,11 @@ class ModuleConfigTest {
         ).validated()
 
         assertTrue(deepLinkRule in config.browserLinks.selectedRules("example.com"))
-        assertEquals("Target", config.priorities.titles[browserRule.id])
+        // BROWSER is a package row upstream: its title moves to the synthetic package key.
+        val browserPackageRule = SyntheticEntryKeys.packageScopedRule(
+            IntentKind.BROWSER, "com.example"
+        )
+        assertEquals("Target", config.priorities.titles[browserPackageRule.id])
         assertEquals("Target", config.priorities.titles[deepLinkRule.id])
     }
 
@@ -89,9 +93,10 @@ class ModuleConfigTest {
         assertFalse(ComponentRule(IntentKind.OPEN, "com.example", "bad\nname").isValid())
     }
 
-    @Test fun emptyTextMenuIsAllowedButFileDestinationIsProtected() {
+    @Test fun emptyResolverResultIsAValidUserChoice() {
+        // Upstream semantics: an empty filtered resolver result is a valid user choice.
         assertFalse(FilterPolicy.restoreEmpty("PROCESS_TEXT", 4, 0))
-        assertTrue(FilterPolicy.restoreEmpty("OPEN", 4, 0))
+        assertFalse(FilterPolicy.restoreEmpty("OPEN", 4, 0))
     }
 
     @Test fun identicalAppInOtherProfileIsNotSameCaller() {

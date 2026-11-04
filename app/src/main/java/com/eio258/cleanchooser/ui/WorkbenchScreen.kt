@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
  * Workbench shell: three segments over the shared list pages. The top bar (with the
@@ -16,6 +17,12 @@ import androidx.compose.ui.unit.dp
 @Composable
 fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
     Column(Modifier.fillMaxSize()) {
+        SpaceSelectorBar(
+            spaces = vm.spaceSelectorItems.collectAsStateWithLifecycle().value,
+            selectedUserId = vm.activeSpaceId.collectAsStateWithLifecycle().value,
+            onSelect = vm::switchSpace,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+        )
         SegmentedTabs(
             labels = WorkbenchTab.entries.map { stringResource(it.labelRes()) },
             selectedIndex = vm.workbenchTab.ordinal,
@@ -43,6 +50,8 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
                     onDetail = vm::openDetail
                 )
                 WorkbenchTab.TEXT -> TextMenuScreen(state, vm)
+                WorkbenchTab.DIRECT_SHARE -> DirectShareScreen(state, vm)
+                WorkbenchTab.SYSTEM_ENTRY -> SystemEntryScreen(state, vm)
             }
         }
     }

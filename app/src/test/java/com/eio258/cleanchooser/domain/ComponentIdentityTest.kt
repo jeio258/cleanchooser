@@ -4,9 +4,11 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class ComponentIdentityTest {
-    @Test fun aliasUsesTargetActivityAsStableRuleIdentity() {
+    @Test fun aliasIsAnIndependentComponent() {
+        // Upstream e28d0b75 semantics (user-confirmed): an alias is its own component; the
+        // target activity is metadata, never a replacement for the resolved identity.
         assertEquals(
-            "com.UCMobile.main.UCMobile",
+            "com.UCMobile.main.UCMobile.DefaultBrowserEntry",
             ComponentIdentity.canonicalClassName(
                 "com.UCMobile",
                 "com.UCMobile.main.UCMobile.DefaultBrowserEntry",
@@ -26,7 +28,7 @@ class ComponentIdentityTest {
 
     @Test fun relativeAndShortNamesAreExpandedDefensively() {
         assertEquals(
-            "com.example.AliasTarget",
+            "com.example.Alias",
             ComponentIdentity.canonicalClassName("com.example", "com.example.Alias", ".AliasTarget")
         )
         assertEquals(

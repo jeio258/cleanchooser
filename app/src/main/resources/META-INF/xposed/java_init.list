@@ -2,3 +2,9 @@ com.eio258.cleanchooser.xposed.ListCleanerModule
 com.eio258.cleanchooser.xposed.ComponentStateGuardModule
 com.eio258.cleanchooser.xposed.ComponentDiscoveryFilterModule
 com.eio258.cleanchooser.xposed.DirectShareConsistencyModule
+com.eio258.cleanchooser.xposed.ShortcutSurfaceModule
+com.eio258.cleanchooser.xposed.LauncherShortcutObserverModule
+com.eio258.cleanchooser.xposed.EmbeddedDirectShareModule
+com.eio258.cleanchooser.xposed.SystemManagerEntryFilterModule
+com.eio258.cleanchooser.xposed.PackageManagerEntryFilterModule
+com.eio258.cleanchooser.xposed.SettingsEntryAuthorityModule

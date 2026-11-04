@@ -14,13 +14,18 @@ import com.eio258.cleanchooser.data.RootComponentScan
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
+
+/** Completed/total snapshot of the running Root batch, surfaced so the UI can offer cancellation. */
+data class RootBatchProgress(val completed: Int, val total: Int)
 
 /** Owns Root component scanning/mutation state so MainViewModel can focus on resolver rules and module state. */
 internal class RootComponentsController(
@@ -47,6 +52,13 @@ internal class RootComponentsController(
     private val mutableDisabledKeys = MutableStateFlow(persistentComponents.disabledKeys())
     /** Components this app disabled; the only ones a restore-to-default may touch. */
     val disabledKeys: StateFlow<Set<String>> = mutableDisabledKeys
+
+    private var mutationJob: Job? = null
+    private val mutableBatchProgress = MutableStateFlow<RootBatchProgress?>(null)
+    val batchProgress: StateFlow<RootBatchProgress?> = mutableBatchProgress.asStateFlow()
+
+    /** Cancels the remaining items; already completed changes are kept. */
+    fun cancelBatch() { mutationJob?.cancel() }
 
     val lastOperation: String get() = catalog.lastOperation
 
@@ -91,14 +103,17 @@ internal class RootComponentsController(
 
     fun change(visibleTargets: List<RootComponent>, enable: Boolean) {
         if (mutableBusy.value) return
-        val targets = visibleTargets.filter {
+        val eligible = visibleTargets.filter {
             it.blocked == null && it.enabled != null && it.enabled != enable
-        }.distinctBy { "${it.user}|${it.component.flattenToString()}" }
+        }
+        val skipped = visibleTargets.size - eligible.size
+        val targets = eligible.distinctBy { "${it.user}|${it.component.flattenToString()}" }
         if (targets.isEmpty()) return
         mutableRootNotice.value = null
         mutableBusy.value = true
         mutableMessage.value = app.getString(R.string.root_requesting_verify)
-        scope.launch {
+        mutableBatchProgress.value = RootBatchProgress(0, targets.size)
+        mutationJob = scope.launch {
             withContext(Dispatchers.IO) {
                 val completedTargets = mutableListOf<RootComponent>()
                 try {
@@ -120,11 +135,17 @@ internal class RootComponentsController(
                             target
                         )
                         completedTargets += target
+                        mutableBatchProgress.value = RootBatchProgress(completedTargets.size, targets.size)
                     }
-                    mutableMessage.value = if (targets.size == 1) {
-                        result
-                    } else {
-                        app.getString(
+                    mutableMessage.value = when {
+                        targets.size == 1 -> result
+                        skipped > 0 -> app.getString(
+                            R.string.root_batch_skipped,
+                            completedTargets.size,
+                            targets.size,
+                            skipped
+                        )
+                        else -> app.getString(
                             if (enable) R.string.root_batch_enabled else R.string.root_batch_disabled,
                             completedTargets.size
                         )
@@ -135,6 +156,9 @@ internal class RootComponentsController(
                     )
                 } catch (cancelled: CancellationException) {
                     Log.i(TAG, "Root component batch cancelled after ${completedTargets.size}/${targets.size}")
+                    mutableMessage.value = app.getString(
+                        R.string.root_batch_cancelled, completedTargets.size, targets.size
+                    )
                     throw cancelled
                 } catch (failure: ComponentRootCommand.RootAccessException) {
                     val message = rootAccessMessage(failure)
@@ -149,6 +173,7 @@ internal class RootComponentsController(
                         app.getString(R.string.root_operation_not_allowed)
                     )
                 } finally {
+                    mutableBatchProgress.value = null
                     if (completedTargets.isNotEmpty()) {
                         withContext(NonCancellable) { app.synchronize() }
                         refreshAfterMutation(completedTargets)
@@ -176,7 +201,8 @@ internal class RootComponentsController(
         mutableRootNotice.value = null
         mutableBusy.value = true
         mutableMessage.value = app.getString(R.string.root_requesting_restore)
-        scope.launch {
+        mutableBatchProgress.value = RootBatchProgress(0, targets.size)
+        mutationJob = scope.launch {
             withContext(Dispatchers.IO) {
                 val completedTargets = mutableListOf<RootComponent>()
                 try {
@@ -201,6 +227,7 @@ internal class RootComponentsController(
                         )
                         completedTargets += target
                         AppLog.event("restored ${target.id} to prior=${prior ?: 0}")
+                        mutableBatchProgress.value = RootBatchProgress(completedTargets.size, targets.size)
                     }
                     mutableMessage.value = app.getString(
                         R.string.root_batch_restored,
@@ -208,6 +235,9 @@ internal class RootComponentsController(
                     )
                 } catch (cancelled: CancellationException) {
                     Log.i(TAG, "Root component restore cancelled after ${completedTargets.size}/${targets.size}")
+                    mutableMessage.value = app.getString(
+                        R.string.root_batch_cancelled, completedTargets.size, targets.size
+                    )
                     throw cancelled
                 } catch (failure: ComponentRootCommand.RootAccessException) {
                     val message = rootAccessMessage(failure)
@@ -222,6 +252,7 @@ internal class RootComponentsController(
                         app.getString(R.string.root_operation_not_allowed)
                     )
                 } finally {
+                    mutableBatchProgress.value = null
                     mutableDisabledKeys.value = persistentComponents.disabledKeys()
                     if (completedTargets.isNotEmpty()) {
                         withContext(NonCancellable) { app.synchronize() }
@@ -246,7 +277,8 @@ internal class RootComponentsController(
         mutableRootNotice.value = null
         mutableBusy.value = true
         mutableMessage.value = app.getString(R.string.root_requesting_invert)
-        scope.launch {
+        mutableBatchProgress.value = RootBatchProgress(0, targets.size)
+        mutationJob = scope.launch {
             withContext(Dispatchers.IO) {
                 val completedTargets = mutableListOf<RootComponent>()
                 try {
@@ -266,10 +298,14 @@ internal class RootComponentsController(
                             target
                         )
                         completedTargets += target
+                        mutableBatchProgress.value = RootBatchProgress(completedTargets.size, targets.size)
                     }
                     mutableMessage.value = app.getString(R.string.root_batch_inverted, completedTargets.size)
                 } catch (cancelled: CancellationException) {
                     Log.i(TAG, "Root component inversion cancelled after ${completedTargets.size}/${targets.size}")
+                    mutableMessage.value = app.getString(
+                        R.string.root_batch_cancelled, completedTargets.size, targets.size
+                    )
                     throw cancelled
                 } catch (failure: ComponentRootCommand.RootAccessException) {
                     val message = rootAccessMessage(failure)
@@ -284,6 +320,7 @@ internal class RootComponentsController(
                         app.getString(R.string.root_operation_not_allowed)
                     )
                 } finally {
+                    mutableBatchProgress.value = null
                     if (completedTargets.isNotEmpty()) {
                         withContext(NonCancellable) { app.synchronize() }
                         refreshAfterMutation(completedTargets)

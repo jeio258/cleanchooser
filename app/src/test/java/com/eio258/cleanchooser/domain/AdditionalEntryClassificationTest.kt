@@ -1,6 +1,7 @@
 package com.eio258.cleanchooser.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Test
 
 class AdditionalEntryClassificationTest {
@@ -31,9 +32,12 @@ class AdditionalEntryClassificationTest {
 
     @Test
     fun everyIntentKindHasMatchingVisibilityScope() {
+        val scoped = setOf("SHARE", "SHARE_MULTIPLE", "SEND_TO", "OPEN", "BROWSER", "DEEP_LINK",
+            "DIAL", "GET_CONTENT", "CAPTURE_IMAGE", "CAPTURE_VIDEO", "RECORD_AUDIO", "PROCESS_TEXT")
         IntentKind.entries.forEach { kind ->
             val scope = VisibilityScope.forKind(kind)
-            assertEquals(kind.name, scope?.name)
+            if (kind.name in scoped) assertEquals(kind.name, scope?.name)
+            else assertNull("system-managed surfaces stay out of visibility compat", scope)
         }
     }
 }

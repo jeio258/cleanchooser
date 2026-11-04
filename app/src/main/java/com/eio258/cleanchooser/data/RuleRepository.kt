@@ -16,16 +16,36 @@ import com.eio258.cleanchooser.domain.normalizeBrowserHost
 import com.eio258.cleanchooser.domain.PackageIdentity
 import com.eio258.cleanchooser.domain.VisibilityCompatConfig
 import com.eio258.cleanchooser.domain.VisibilityScope
+import com.eio258.cleanchooser.domain.MultiSpaceBackup
+import com.eio258.cleanchooser.domain.SpaceBackupEntry
+import com.eio258.cleanchooser.domain.UserSpaceRules
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+
+data class SpaceBackupPreview(
+    val sourceUserId: Int,
+    val sourceName: String,
+    val rules: Int,
+    val rootDisabledRecords: Int,
+)
+
+data class SpaceBackupInspection(
+    val version: Int,
+    val spaces: List<SpaceBackupPreview>,
+)
 
 class RuleRepository(context: Context) {
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences(LOCAL_PREFS, Context.MODE_PRIVATE)
     private val json = Json { prettyPrint = true; ignoreUnknownKeys = true }
+    // v13 discriminator and version MUST be present, even though their Kotlin fields have defaults.
+    private val portableBackupJson = Json { prettyPrint = true; ignoreUnknownKeys = true; encodeDefaults = true }
     private val mutableRules = MutableStateFlow(
         prefs.getStringSet(KEY_RULES, emptySet()).orEmpty().mapNotNull(ComponentRule::fromId).toSet()
     )
@@ -68,10 +88,49 @@ class RuleRepository(context: Context) {
     private val mutableRevision = MutableStateFlow(0L)
     val revision: StateFlow<Long> = mutableRevision.asStateFlow()
 
+    // ---- 多用户空间独立配置 ----
+    // 未配置空间的 fail-open 语义：任何没有独立配置的 Android 用户，hook 侧一律回退
+    // SHOW_ALL + 空规则（不做任何隐藏/过滤），discovery 本身不减少 resolver 候选。
+    // 存储口径：顶层分节键（KEY_RULES 等）始终镜像「当前 active 空间」，保证旧读取方与
+    // 进程重启恢复一致；user_spaces_v1 是本仓库自持的 JSON Map<Int,UserSpaceRules>，
+    // 允许 key=0（不受 ModuleConfig.validated 的 1..99999 约束），仅在组装
+    // ModuleConfig.userSpaces 时排除 0。
+    private val storedSpaces = mutableMapOf<Int, UserSpaceRules>().apply {
+        prefs.getString(KEY_USER_SPACES, null)?.let { encoded ->
+            if (encoded.length <= MAX_BACKUP_CHARS) runCatching {
+                json.decodeFromString(
+                    MapSerializer(Int.serializer(), UserSpaceRules.serializer()), encoded
+                )
+            }.getOrNull()?.forEach { (userId, space) ->
+                if (userId in 0..99999 && size < MAX_SPACES + 1) {
+                    runCatching { space.validated() }.getOrNull()?.let { put(userId, it) }
+                }
+            }
+        }
+    }
+    private val mutableActiveSpace = MutableStateFlow(0)
+    val activeSpace: StateFlow<Int> = mutableActiveSpace.asStateFlow()
+
+    /** Discovered user spaces are exposed by UserSpaceManager; selection state here. */
+
+    init {
+        val restored = prefs.getInt(KEY_ACTIVE_SPACE, 0)
+        if (restored != 0 && storedSpaces.containsKey(restored)) {
+            // 顶层分节键记录的是上次会话 active 空间的最新编辑；map 内条目可能是切走时的
+            // 旧值，因此先加载再以顶层键回填，避免重启丢失编辑。
+            loadSpaceIntoFlows(requireNotNull(storedSpaces[restored]))
+            mutableActiveSpace.value = restored
+            storedSpaces[restored] = currentSpaceSnapshot()
+        } else {
+            // 始终保证 map 里存在空间 0（导入/导出全空间快照依赖该不变量）。
+            storedSpaces[0] = currentSpaceSnapshot()
+        }
+    }
+
     fun hasLocalConfiguration(): Boolean = prefs.contains(KEY_INITIALIZED) || prefs.contains(KEY_RULES) ||
         prefs.contains(KEY_DISPLAY_MODE) || prefs.contains(KEY_BLACKLIST) || prefs.contains(KEY_PRIORITIES) ||
         prefs.contains(KEY_HIDDEN_FROM_APPS) || prefs.contains(KEY_OPEN_TYPES) || prefs.contains(KEY_BROWSER_LINKS) || prefs.contains(KEY_VISIBILITY_SCOPES) ||
-        prefs.contains(KEY_TILES) || prefs.contains(KEY_DEFAULT_OPEN)
+        prefs.contains(KEY_TILES) || prefs.contains(KEY_DEFAULT_OPEN) || prefs.contains(KEY_USER_SPACES)
 
     fun markInitialized() {
         prefs.edit().putBoolean(KEY_INITIALIZED, true).remove(KEY_TILES).remove(KEY_DEFAULT_OPEN).apply()
@@ -81,18 +140,102 @@ class RuleRepository(context: Context) {
         applyConfig(config, config.mode != DisplayMode.SHOW_SELECTED)
     }
 
-    /** Legacy ModuleConfig fields remain deserializable, but new remote snapshots always use defaults. */
-    @Synchronized fun remoteSnapshot(): ModuleConfig = ModuleConfig(
-        rules = mutableRules.value.toSet(), mode = mutableMode.value, priorities = mutablePriorities.value,
-        diagnostic = mutableDiagnostic.value, managerAppId = android.os.Process.myUid() % 100_000,
-        hiddenFromApps = mutableHiddenFromApps.value.toSet(), openTypes = mutableOpenTypes.value,
-        browserLinks = mutableBrowserLinks.value,
-        textMenuOrder = mutableTextMenuOrder.value,
-        visibilityCompat = VisibilityCompatConfig(
-            scopes = mutableVisibilityScopes.value.toSet(),
-            fullPackages = mutableVisibilityFullPackages.value.mapValues { it.value.toSet() }
+    /**
+     * Legacy ModuleConfig fields remain deserializable, but new remote snapshots always use defaults.
+     *
+     * 组装口径：当前 active 空间占用顶层字段；userSpaces 携带其余全部空间（当前空间除外）。
+     * hook 侧按 Binder uid 解析 user id 后查 userSpaces，查不到的未配置空间 fail-open：
+     * SHOW_ALL + 空规则。已知限制：ModuleConfig.validated() 限制 userSpaces key ∈ 1..99999，
+     * 故 active != 0 时空间 0 的配置无法随 userSpaces 下发（user 0 回退顶层会命中当前空间）；
+     * 如需修复须放宽该校验后把下面的 `it != 0` 过滤去掉。
+     */
+    @Synchronized fun remoteSnapshot(): ModuleConfig {
+        val active = currentSpaceSnapshot()
+        val userSpaces = storedSpaces.toMutableMap()
+            .apply { put(mutableActiveSpace.value, active) }
+            .filterKeys { it != mutableActiveSpace.value && it != 0 }
+        return ModuleConfig(
+            rules = mutableRules.value.toSet(), mode = mutableMode.value, priorities = mutablePriorities.value,
+            diagnostic = mutableDiagnostic.value, managerAppId = android.os.Process.myUid() % 100_000,
+            hiddenFromApps = mutableHiddenFromApps.value.toSet(), openTypes = mutableOpenTypes.value,
+            browserLinks = mutableBrowserLinks.value,
+            textMenuOrder = mutableTextMenuOrder.value,
+            visibilityCompat = VisibilityCompatConfig(
+                scopes = mutableVisibilityScopes.value.toSet(),
+                fullPackages = mutableVisibilityFullPackages.value.mapValues { it.value.toSet() }
+            ).validated(),
+            userSpaces = userSpaces
         ).validated()
+    }
+
+    private fun currentSpaceSnapshot(): UserSpaceRules = UserSpaceRules(
+        rules = mutableRules.value.toSet(),
+        mode = mutableMode.value,
+        priorities = mutablePriorities.value,
+        diagnostic = mutableDiagnostic.value,
+        hiddenFromApps = mutableHiddenFromApps.value.toSet(),
+        openTypes = mutableOpenTypes.value,
+        browserLinks = mutableBrowserLinks.value,
+        visibilityCompat = VisibilityCompatConfig(scopes = mutableVisibilityScopes.value.toSet())
     )
+
+    /** 把一个空间的配置载入现有 StateFlows；派生的 fullPackages 按空间重建（不持久化）。 */
+    private fun loadSpaceIntoFlows(space: UserSpaceRules) {
+        mutableRules.value = space.rules.mapNotNull { ComponentRule.fromId(it.id) }.toSet()
+        mutableMode.value = space.mode
+        mutablePriorities.value = runCatching { space.priorities.validated() }.getOrDefault(PriorityConfig())
+        mutableOpenTypes.value = space.openTypes
+        mutableBrowserLinks.value = space.browserLinks
+        mutableDiagnostic.value = space.diagnostic
+        mutableHiddenFromApps.value = space.hiddenFromApps
+        mutableVisibilityScopes.value = space.visibilityCompat.scopes
+        mutableVisibilityFullPackages.value = emptyMap()
+    }
+
+    private fun persistSpaces() {
+        prefs.edit().putString(
+            KEY_USER_SPACES,
+            json.encodeToString(
+                MapSerializer(Int.serializer(), UserSpaceRules.serializer()),
+                storedSpaces.toMap()
+            )
+        ).apply()
+    }
+
+    /** 顶层分节键始终镜像 active 空间，保证进程重启后 init 能恢复上次所在空间。 */
+    private fun persistActiveSpaceKeys() {
+        prefs.edit()
+            .putStringSet(KEY_RULES, mutableRules.value.map(ComponentRule::id).toSet())
+            .putBoolean(KEY_BLACKLIST, mutableMode.value != DisplayMode.SHOW_SELECTED)
+            .putString(KEY_DISPLAY_MODE, mutableMode.value.name)
+            .putString(KEY_PRIORITIES, encodePriorities())
+            .putString(KEY_OPEN_TYPES, json.encodeToString(OpenTypeConfig.serializer(), mutableOpenTypes.value))
+            .putString(KEY_BROWSER_LINKS, json.encodeToString(BrowserLinkConfig.serializer(), mutableBrowserLinks.value))
+            .putBoolean(KEY_DIAGNOSTIC, mutableDiagnostic.value)
+            .putStringSet(KEY_HIDDEN_FROM_APPS, mutableHiddenFromApps.value)
+            .putStringSet(KEY_VISIBILITY_SCOPES, mutableVisibilityScopes.value.map { it.name }.toSet())
+            .putBoolean(KEY_INITIALIZED, true)
+            .remove(KEY_TILES)
+            .remove(KEY_DEFAULT_OPEN)
+            .apply()
+    }
+
+    /**
+     * 切换编辑空间：当前 active 空间的 rules/priorities/openTypes/browserLinks 等存回
+     * user_spaces_v1，再载入目标空间并发布。textMenuOrder 当前为全局共享
+     * （UserSpaceRules 无对应字段，见交接说明），不随空间切换。
+     */
+    @Synchronized fun switchSpace(userId: Int) {
+        require(userId in 0..99999)
+        if (userId == mutableActiveSpace.value) return
+        storedSpaces[mutableActiveSpace.value] = currentSpaceSnapshot()
+        loadSpaceIntoFlows(storedSpaces[userId] ?: UserSpaceRules())
+        mutableActiveSpace.value = userId
+        prefs.edit().putInt(KEY_ACTIVE_SPACE, userId).apply()
+        persistSpaces()
+        persistActiveSpaceKeys()
+        mutableRevision.value++
+    }
 
     @Synchronized fun setHiddenFromApps(packages: Set<String>) {
         val valid = normalizeHiddenApps(packages)
@@ -391,6 +534,15 @@ class RuleRepository(context: Context) {
 
     /** All six menu sections above in one SharedPreferences transaction and one revision. */
     @Synchronized fun resetMenuConfig() {
+        // 只清当前 active 空间；其他空间的配置原样保留在 user_spaces_v1。
+        if (mutableActiveSpace.value != 0) {
+            loadSpaceIntoFlows(UserSpaceRules())
+            storedSpaces[mutableActiveSpace.value] = UserSpaceRules()
+            persistSpaces()
+            persistActiveSpaceKeys()
+            mutableRevision.value++
+            return
+        }
         val diagnostic = mutableDiagnostic.value
         prefs.edit()
             .putStringSet(KEY_RULES, emptySet())
@@ -450,6 +602,127 @@ class RuleRepository(context: Context) {
             ),
             blacklist
         )
+    }
+
+    /** Snapshot includes unswitched edits, but never derives settings from another profile. */
+    @Synchronized private fun allSpaceSettings(): Map<Int, UserSpaceRules> =
+        storedSpaces.toMutableMap()
+            .apply { put(mutableActiveSpace.value, currentSpaceSnapshot()) }
+            .toMap()
+
+    /** Select any subset of spaces; names are informational and not trusted during restore. */
+    @Synchronized fun exportSpaces(
+        userIds: Set<Int>,
+        names: Map<Int, String>,
+        rootDisabledKeys: Set<String> = emptySet(),
+    ): String {
+        require(userIds.isNotEmpty() && userIds.size <= MAX_SPACES)
+        val available = allSpaceSettings()
+        val entries = userIds.sorted().map { userId ->
+            require(userId in 0..99999)
+            val settings = available[userId] ?: UserSpaceRules()
+            SpaceBackupEntry(
+                sourceUserId = userId,
+                sourceName = names[userId]?.trim()?.take(100)?.takeIf { it.isNotBlank() }
+                    ?: appContext.getString(R.string.space_user_title, userId),
+                settings = settings.validated(),
+                rootDisabledComponents = rootDisabledKeys.filterTo(linkedSetOf()) {
+                    it.startsWith("$userId|")
+                },
+            )
+        }
+        val encoded = portableBackupJson.encodeToString(
+            MultiSpaceBackup.serializer(),
+            MultiSpaceBackup(spaces = entries).validated()
+        )
+        require(encoded.length <= MAX_BACKUP_CHARS) { appContext.getString(R.string.repo_backup_too_large) }
+        return encoded
+    }
+
+    /**
+     * Legacy (v1–v11) RuleBackup archives contain exactly one set of resolver rules. Treat it
+     * as one source entry that can be explicitly mapped to *any* target Android user.
+     */
+    @Synchronized private fun decodePortableBackup(content: String): MultiSpaceBackup {
+        require(content.length <= MAX_BACKUP_CHARS) { appContext.getString(R.string.repo_backup_too_large) }
+        val root = json.parseToJsonElement(content).jsonObject
+        if (root["format"]?.jsonPrimitive?.content == MultiSpaceBackup.FORMAT) {
+            return json.decodeFromString(MultiSpaceBackup.serializer(), content).validated()
+        }
+        val old = json.decodeFromString(RuleBackup.serializer(), content)
+        require(old.version in 1..11) {
+            appContext.getString(R.string.repo_backup_unsupported_version, old.version)
+        }
+        if (old.version >= 3) requireNotNull(old.displayMode) {
+            appContext.getString(R.string.repo_backup_missing_display_mode)
+        }
+        require(old.rules.all(ComponentRule::isValid)) {
+            appContext.getString(R.string.repo_backup_invalid_component)
+        }
+        val settings = UserSpaceRules(
+            rules = old.rules,
+            mode = old.displayMode ?: DisplayMode.fromStored(null, old.blacklist),
+            priorities = if (old.version == 1) PriorityConfig() else old.priorities,
+            diagnostic = false,
+            hiddenFromApps = if (old.version >= 5) old.hiddenFromApps else emptySet(),
+            openTypes = if (old.version >= 7) old.openTypes else OpenTypeConfig(),
+            browserLinks = if (old.version >= 10) old.browserLinks else BrowserLinkConfig(),
+            visibilityCompat = VisibilityCompatConfig(
+                scopes = if (old.version >= 9) old.visibilityScopes else emptySet()
+            ),
+        ).validated()
+        return MultiSpaceBackup(spaces = listOf(
+            SpaceBackupEntry(
+                sourceUserId = 0,
+                sourceName = appContext.getString(R.string.backup_spaces_legacy_source),
+                settings = settings
+            )
+        )).validated()
+    }
+
+    fun inspectSpaces(content: String): SpaceBackupInspection {
+        val version = json.parseToJsonElement(content).jsonObject["version"]
+            ?.jsonPrimitive?.content?.toIntOrNull() ?: 1
+        val parsed = decodePortableBackup(content)
+        return SpaceBackupInspection(version, parsed.spaces.map {
+            SpaceBackupPreview(
+                it.sourceUserId, it.sourceName, it.settings.rules.size, it.rootDisabledComponents.size
+            )
+        })
+    }
+
+    /** Source IDs are never assumed to be equal to target IDs on another phone. */
+    @Synchronized fun importSpaces(content: String, mappings: Map<Int, Int>) {
+        val configs = decodePortableBackup(content).mapped(mappings)
+        val next = allSpaceSettings().toMutableMap().apply { putAll(configs) }
+        replaceSpaceSettings(next)
+    }
+
+    /**
+     * Publishes every space atomically: one commit, then the active space is reloaded into the
+     * StateFlows and re-persisted to the top-level section keys. If persistence fails, no
+     * in-memory space is mutated and no partial import starts.
+     */
+    @Synchronized private fun replaceSpaceSettings(requested: Map<Int, UserSpaceRules>) {
+        require(requested.containsKey(0) && requested.keys.all { it in 0..99999 })
+        require(requested.keys.size <= MAX_SPACES + 1)
+        val clean = requested.mapValues { (_, value) ->
+            value.copy(visibilityCompat = VisibilityCompatConfig(
+                scopes = value.visibilityCompat.scopes
+            )).validated()
+        }
+        val encoded = json.encodeToString(
+            MapSerializer(Int.serializer(), UserSpaceRules.serializer()), clean
+        )
+        require(encoded.length <= MAX_BACKUP_CHARS) { appContext.getString(R.string.repo_backup_too_large) }
+        check(prefs.edit().putString(KEY_USER_SPACES, encoded).commit()) {
+            "Space backup could not be committed"
+        }
+        storedSpaces.clear()
+        storedSpaces.putAll(clean)
+        loadSpaceIntoFlows(storedSpaces[mutableActiveSpace.value] ?: UserSpaceRules())
+        persistActiveSpaceKeys()
+        mutableRevision.value++
     }
 
     @Synchronized fun exportJson(): String = json.encodeToString(
@@ -601,6 +874,10 @@ class RuleRepository(context: Context) {
         )
         private const val LOCAL_PREFS = "rules_local"
         private const val KEY_INITIALIZED = "configuration_initialized"
+        /** 每空间独立配置：JSON Map<Int,UserSpaceRules>（允许 key=0）+ active 空间 id。 */
+        const val KEY_USER_SPACES = "user_spaces_v1"
+        const val KEY_ACTIVE_SPACE = "active_space_v1"
+        private const val MAX_SPACES = 16
         private const val MAX_RULES = 20_000
         const val MAX_BACKUP_CHARS = 2_000_000
     }

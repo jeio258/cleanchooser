@@ -25,6 +25,8 @@ internal fun WorkbenchTab.labelRes(): Int = when (this) {
     WorkbenchTab.PRIORITY -> R.string.nav_priority
     WorkbenchTab.COMPONENTS -> R.string.nav_components
     WorkbenchTab.TEXT -> R.string.text_menu_title
+    WorkbenchTab.DIRECT_SHARE -> R.string.workbench_direct_share
+    WorkbenchTab.SYSTEM_ENTRY -> R.string.workbench_system_entry
 }
 
 @StringRes
@@ -53,16 +55,39 @@ internal fun DisplayMode.titleRes(): Int = when (this) {
 internal fun IntentKind.titleRes(): Int = when (this) {
     IntentKind.SHARE -> R.string.intent_share
     IntentKind.SHARE_MULTIPLE -> R.string.intent_share_multiple
+    IntentKind.DIRECT_SHARE -> R.string.intent_direct_share
     IntentKind.SEND_TO -> R.string.intent_send_to
     IntentKind.OPEN -> R.string.intent_open
+    IntentKind.EDIT -> R.string.intent_edit
+    IntentKind.PICK -> R.string.intent_pick
     IntentKind.BROWSER -> R.string.intent_browser
     IntentKind.DEEP_LINK -> R.string.intent_deep_link
     IntentKind.DIAL -> R.string.intent_dial
     IntentKind.GET_CONTENT -> R.string.intent_get_content
+    IntentKind.OPEN_DOCUMENT -> R.string.intent_open_document
+    IntentKind.CREATE_DOCUMENT -> R.string.intent_create_document
     IntentKind.CAPTURE_IMAGE -> R.string.intent_capture_image
     IntentKind.CAPTURE_VIDEO -> R.string.intent_capture_video
     IntentKind.RECORD_AUDIO -> R.string.intent_record_audio
     IntentKind.PROCESS_TEXT -> R.string.intent_process_text
+    IntentKind.HOME -> R.string.intent_home
+    IntentKind.ASSISTANT -> R.string.intent_assistant
+    IntentKind.LAUNCHER_SHORTCUT -> R.string.intent_launcher_shortcut
+    IntentKind.SHORTCUT_ITEM -> R.string.intent_shortcut_item
+    IntentKind.DOCUMENT_PROVIDER -> R.string.intent_document_provider
+    IntentKind.DOCUMENT_ROOT -> R.string.intent_document_root
+    IntentKind.PHOTO_SOURCE -> R.string.intent_photo_source
+    IntentKind.INPUT_METHOD -> R.string.intent_input_method
+    IntentKind.AUTOFILL -> R.string.intent_autofill
+    IntentKind.CREDENTIAL_PROVIDER -> R.string.intent_credential_provider
+    IntentKind.NOTIFICATION_LISTENER -> R.string.intent_notification_listener
+    IntentKind.ACCESSIBILITY -> R.string.intent_accessibility
+    IntentKind.VPN -> R.string.intent_vpn
+    IntentKind.PRINT -> R.string.intent_print
+    IntentKind.WALLPAPER -> R.string.intent_wallpaper
+    IntentKind.DREAM -> R.string.intent_dream
+    IntentKind.NFC_HCE -> R.string.intent_nfc_hce
+    IntentKind.CALL_SCREENING -> R.string.intent_call_screening
 }
 
 @StringRes

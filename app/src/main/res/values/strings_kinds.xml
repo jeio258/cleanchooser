@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Entry kind titles for the IntentKind catalog extension. -->
+    <string name="intent_direct_share">Direct Share</string>
+    <string name="intent_open_document">Open document</string>
+    <string name="intent_create_document">Save document</string>
+    <string name="intent_home">Home chooser</string>
+    <string name="intent_assistant">Assistant entry</string>
+    <string name="intent_launcher_shortcut">Legacy shortcut</string>
+    <string name="intent_shortcut_item">Long-press shortcuts</string>
+    <string name="intent_document_provider">DocumentsUI</string>
+    <string name="intent_document_root">File sidebar</string>
+    <string name="intent_photo_source">Cloud photo sources</string>
+    <string name="intent_input_method">Keyboards</string>
+    <string name="intent_autofill">Autofill</string>
+    <string name="intent_credential_provider">Credential services</string>
+    <string name="intent_notification_listener">Notification listeners</string>
+    <string name="intent_accessibility">Accessibility</string>
+    <string name="intent_vpn">VPN</string>
+    <string name="intent_print">Print</string>
+    <string name="intent_wallpaper">Live wallpaper</string>
+    <string name="intent_dream">Screensaver</string>
+    <string name="intent_nfc_hce">NFC emulation</string>
+    <string name="intent_call_screening">Call screening</string>
+    <string name="intent_edit">Edit with</string>
+    <string name="intent_pick">Pick item</string>
+</resources>

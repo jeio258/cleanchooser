@@ -52,4 +52,13 @@
     <string name="root_batch_restored">Restored %1$d components to system default</string>
     <string name="root_component_restored">Restored "%1$s" to system default</string>
     <string name="root_component_already_default">Component is already at system default</string>
+
+    <string name="root_batch_cancelled">Processed %1$d/%2$d (cancelled)</string>
+    <string name="root_batch_stop_remaining">Stop remaining</string>
+    <string name="root_batch_skipped">Completed %1$d/%2$d (skipped %3$d)</string>
+
+    <string name="root_system_app_warning_title">Batch operation includes system apps</string>
+    <string name="root_system_app_warning_body">The selection includes system app components. Disabling them can break system features such as tiles, widgets, or entry points. Completed changes are not rolled back.</string>
+    <string name="root_system_app_warning_confirm">Continue</string>
+    <string name="root_system_app_warning_cancel">Cancel</string>
 </resources>

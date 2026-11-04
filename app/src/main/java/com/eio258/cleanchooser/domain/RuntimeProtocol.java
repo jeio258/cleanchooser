@@ -13,6 +13,27 @@ import java.security.MessageDigest;
 public final class RuntimeProtocol {
     public static final String ACTION = "com.eio258.cleanchooser.action.RUNTIME_PROBE_V1";
     public static final String PACKAGE = "com.eio258.cleanchooser";
+
+    /**
+     * Explicit manager-owned PackageManager preview only. The system hook must also authenticate
+     * caller UID == the installed manager app ID before bypassing the ordinary manager exemption.
+     */
+    public static final String EXTRA_MANAGER_PREVIEW_QUERY =
+            PACKAGE + ".extra.MANAGER_FILTERED_PREVIEW";
+    /** Authorized, asynchronous, read-only system_server Direct Share inventory. */
+    public static final String OP_SCAN_DIRECT_SHARE = "scan_direct_share";
+    public static final String EXTRA_SCAN_USER_ID = PACKAGE + ".extra.SCAN_USER_ID";
+    public static final String EXTRA_SCAN_TOKEN = PACKAGE + ".extra.SCAN_TOKEN";
+    /** The manager polls and reads a token-bound, in-memory scan in small pieces. */
+    public static final String OP_READ_DIRECT_SHARE = "read_direct_share";
+    public static final String EXTRA_SCAN_CHUNK_INDEX = PACKAGE + ".extra.SCAN_CHUNK_INDEX";
+    public static final String META_SCAN_STATUS = PACKAGE + ".meta.SCAN_STATUS";
+    public static final String META_SCAN_USER_ID = PACKAGE + ".meta.SCAN_USER_ID";
+    public static final String META_SCAN_TOKEN = PACKAGE + ".meta.SCAN_TOKEN";
+    public static final String META_SCAN_RECORDS = PACKAGE + ".meta.SCAN_RECORDS";
+    public static final String META_SCAN_CHUNKS = PACKAGE + ".meta.SCAN_CHUNKS";
+    public static final String META_SCAN_PAYLOAD = PACKAGE + ".meta.SCAN_PAYLOAD";
+    public static final String META_SCAN_ERROR = PACKAGE + ".meta.SCAN_ERROR";
     public static final String COMPONENT = PACKAGE + ".RuntimeProbe";
 
     public static final int VERSION = 2;

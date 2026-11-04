@@ -124,10 +124,32 @@ internal class BulkLockStore(context: Context) {
         mutableRevision.value++
     }
 
+    fun exportSnapshot(): Set<String> = entries().toSet()
+
+    /** Restores bulk-action protection only; no system components are toggled. */
+    @Synchronized
+    fun restoreSnapshot(snapshot: Set<String>) {
+        require(snapshot.size <= MAX_BACKUP_ENTRIES && snapshot.all { value ->
+            val parts = value.split(SEPARATOR)
+            parts.size == 3 && parts[0].length in 6..200 &&
+                (parts[0].startsWith("rules:") || parts[0].startsWith("priority:") ||
+                    parts[0].startsWith("components:")) &&
+                parts[1] in setOf("app", "item") && parts[2].length in 1..1024
+        }) { "Invalid bulk lock backup" }
+        persist(migrateLegacyDeepLinkLocks(snapshot))
+    }
+
+    @Synchronized
+    fun reloadFromDisk() {
+        cachedEntries = migrateLegacyDeepLinkLocks(prefs.getStringSet(KEY_ENTRIES, emptySet()).orEmpty().toSet())
+        mutableRevision.value++
+    }
+
     private companion object {
         const val PREFS = "bulk_action_locks"
         const val KEY_ENTRIES = "entries_v1"
         const val SEPARATOR = "\u001f"
+        const val MAX_BACKUP_ENTRIES = 20_000
     }
 }
 

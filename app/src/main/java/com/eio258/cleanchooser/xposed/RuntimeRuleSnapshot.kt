@@ -21,6 +21,14 @@ internal data class RuntimeRuleSnapshot(
     val visibilityCompat: VisibilityCompatConfig = VisibilityCompatConfig(),
     /** Component ids (PROCESS_TEXT) in the user's text-menu order. */
     val textMenuOrder: List<String> = emptyList(),
+    /** Per-Android-user rule spaces; user 0 stays in the top-level fields. */
+    val userSpaces: Map<Int, com.eio258.cleanchooser.domain.UserSpaceRules> = emptyMap(),
+    /** Direct Share per-MIME family rules. */
+    val directShareTypes: com.eio258.cleanchooser.domain.DirectShareTypeConfig =
+        com.eio258.cleanchooser.domain.DirectShareTypeConfig(),
+    /** AOSP presentation filters (SystemUI/DocumentsUI/Settings surfaces). */
+    val surfaceFilters: com.eio258.cleanchooser.domain.SurfaceFilterConfig =
+        com.eio258.cleanchooser.domain.SurfaceFilterConfig(),
 ) {
     private val selectedKinds: Set<IntentKind> = selectedKinds(configured)
     val allSelectedPackages: Set<String> = visibilityCompat.activePackages()

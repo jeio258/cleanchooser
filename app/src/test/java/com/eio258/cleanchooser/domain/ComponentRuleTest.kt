@@ -18,6 +18,26 @@ class ComponentRuleTest {
     }
 
     @Test
+    fun retiredLauncherShortcutIdsAreDiscarded() {
+        val rule = ComponentRule(
+            IntentKind.LAUNCHER_SHORTCUT,
+            "com.example.target",
+            "com.example.target.MainActivity"
+        )
+
+        assertNull(ComponentRule.fromId(rule.id))
+    }
+
+    @Test
+    fun shortcutItemIdsRoundTripWithCanonicalSyntheticClass() {
+        val canonical = "@entry#shortcut#" + "0123456789abcdef01234567"
+        val rule = ComponentRule(IntentKind.SHORTCUT_ITEM, "com.example.target", canonical)
+
+        assertEquals(rule, ComponentRule.fromId(rule.id))
+        assertEquals(rule, ComponentRule.fromId("SHORTCUT_ITEM|com.example.target|com.example.target.MainActivity#shortcut#" + "0123456789abcdef01234567"))
+    }
+
+    @Test
     fun invalidComponentDelimiterIsRejected() {
         val rule = ComponentRule(IntentKind.OPEN, "com.example|bad", ".OpenActivity")
 

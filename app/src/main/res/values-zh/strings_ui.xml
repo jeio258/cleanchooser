@@ -47,4 +47,7 @@
     <string name="app_version_format">%1$s v%2$s</string>
     <string name="list_header_help">本页说明</string>
     <string name="list_summary_format">%1$s · %2$s</string>
+    <string name="workbench_direct_share">直接分享</string>
+    <string name="workbench_system_entry">系统入口</string>
+    <string name="system_entry_hidden_hint">已隐藏 %1$d 个系统入口；开关只影响各设置页列表，不会停用服务或组件</string>
 </resources>

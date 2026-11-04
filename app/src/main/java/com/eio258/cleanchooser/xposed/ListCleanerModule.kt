@@ -83,14 +83,45 @@ class ListCleanerModule : XposedModule() {
     private val callerPackageCache = java.util.concurrent.ConcurrentHashMap<Int, List<String>>()
 
 
-    private var snapshot = RuntimeRuleSnapshot(
-        configured = emptySet(),
-        displayMode = DisplayMode.HIDE_SELECTED,
-        priorities = PriorityConfig(),
-        openTypes = OpenTypeConfig(),
-        browserLinks = BrowserLinkConfig(),
-        diagnostic = false,
+    // Per-user policy generation: user 0 is primary; other Android users (clones/work profiles)
+    // get their own snapshot. Unconfigured users fail open (SHOW_ALL, no rules).
+    private data class UserPolicyGeneration(
+        val primary: RuntimeRuleSnapshot,
+        val otherUsers: Map<Int, RuntimeRuleSnapshot>,
     )
+
+    @Volatile private var policies = UserPolicyGeneration(
+        primary = RuntimeRuleSnapshot(
+            configured = emptySet(),
+            displayMode = DisplayMode.HIDE_SELECTED,
+            priorities = PriorityConfig(),
+            openTypes = OpenTypeConfig(),
+            browserLinks = BrowserLinkConfig(),
+            diagnostic = false,
+        ),
+        otherUsers = emptyMap(),
+    )
+    private val activeQuerySnapshot = ThreadLocal<RuntimeRuleSnapshot?>()
+
+    private val snapshot: RuntimeRuleSnapshot
+        get() = activeQuerySnapshot.get() ?: policies.primary
+
+    private fun snapshotForUser(userId: Int): RuntimeRuleSnapshot {
+        // Never base a nested cross-user resolution on the thread-local snapshot: resolve from
+        // the atomically published generation instead.
+        val generation = policies
+        if (userId == 0) return generation.primary
+        return generation.otherUsers[userId] ?: generation.primary.copy(
+            configured = emptySet(),
+            displayMode = DisplayMode.SHOW_ALL,
+            priorities = PriorityConfig(),
+            openTypes = OpenTypeConfig(),
+            browserLinks = BrowserLinkConfig(),
+            hiddenFromApps = emptySet(),
+            textMenuOrder = emptyList(),
+        )
+    }
+
     private var lastEncodedConfig: String? = null
     @Volatile private var runtimeTransportActive = false
     @Volatile private var appliedRuntimeRevision = -1L
@@ -241,6 +272,9 @@ class ListCleanerModule : XposedModule() {
         record("SYSTEM_SERVER_STARTING loader=${param.classLoader.javaClass.name}")
         initializePreferences()
         installSystemServerQueryHooks(param.classLoader)
+        runCatching {
+            DirectShareActiveScanBridge.initialize(param.classLoader, ::record)
+        }.onFailure { record("DIRECT_SCAN_BRIDGE_INIT_FAILED error=${it.javaClass.name}") }
         menuProbe = MenuSnapshotProbe(
             register = { method, hooker -> hook(method).intercept(hooker) },
             diagnostic = { message -> record(message) }
@@ -995,6 +1029,14 @@ class ListCleanerModule : XposedModule() {
             } else {
                 chain.proceed()
             }
+            // Per-user routing: a querying app's own Android user selects its rule space
+            // (clones/work profiles). System-resolved target users fall back to the caller.
+            if (layer == Layer.SYSTEM && callerUid >= 10000) {
+                val callerUser = com.eio258.cleanchooser.domain.AndroidUid.userId(callerUid)
+                if (callerUser != 0) {
+                    activeQuerySnapshot.set(snapshotForUser(callerUser))
+                }
+            }
             try {
                 processQuery(chain, original, layer, callerUid).also { circuit.recordSuccess() }
             } catch (failure: Throwable) {
@@ -1005,6 +1047,7 @@ class ListCleanerModule : XposedModule() {
                 original
             }
         } finally {
+            activeQuerySnapshot.remove()
             queryInProgress.remove()
         }
     }
@@ -1040,6 +1083,57 @@ class ListCleanerModule : XposedModule() {
 
         val verifiedManagerAppId = verifiedManagerAppIdForProbe(chain, callerUid)
             ?: return original
+
+        // Authorized read-only Direct Share inventory: authenticated scan request + chunked read.
+        if (operation == RuntimeProtocol.OP_SCAN_DIRECT_SHARE ||
+            operation == RuntimeProtocol.OP_READ_DIRECT_SHARE) {
+            if (!ManagerIdentity.matches(callerUid, snapshot.managerAppId)) {
+                record("DIRECT_SCAN_REJECT uid=$callerUid reason=identity")
+                return original
+            }
+            val user = intent.getIntExtra(RuntimeProtocol.EXTRA_SCAN_USER_ID, 0)
+            val token = intent.getStringExtra(RuntimeProtocol.EXTRA_SCAN_TOKEN).orEmpty()
+            val ack = ResolveInfo().apply {
+                activityInfo = ActivityInfo().apply {
+                    packageName = RuntimeProtocol.PACKAGE
+                    name = RuntimeProtocol.COMPONENT
+                    applicationInfo = ApplicationInfo().apply { packageName = RuntimeProtocol.PACKAGE }
+                }
+            }
+            if (operation == RuntimeProtocol.OP_SCAN_DIRECT_SHARE) {
+                val accepted = runCatching {
+                    DirectShareActiveScanBridge.request(user, token)
+                }.getOrDefault(false)
+                ack.activityInfo.metaData = android.os.Bundle().apply {
+                    putString(RuntimeProtocol.META_SCAN_STATUS, if (accepted) "requested" else "busy")
+                    putInt(RuntimeProtocol.META_SCAN_USER_ID, user)
+                    putString(RuntimeProtocol.META_SCAN_TOKEN, token)
+                }
+                diagnostic("DIRECT_SCAN_REQUESTED user=$user accepted=$accepted")
+                return ack
+            }
+            val chunkIndex = intent.getIntExtra(RuntimeProtocol.EXTRA_SCAN_CHUNK_INDEX, -1)
+            val result = runCatching {
+                DirectShareActiveScanBridge.read(user, token, chunkIndex)
+            }.getOrNull()
+            if (result == null) {
+                ack.activityInfo.metaData = android.os.Bundle().apply {
+                    putString(RuntimeProtocol.META_SCAN_STATUS, "expired")
+                }
+                return ack
+            }
+            ack.activityInfo.metaData = android.os.Bundle().apply {
+                putString(RuntimeProtocol.META_SCAN_STATUS, result.status)
+                putInt(RuntimeProtocol.META_SCAN_USER_ID, user)
+                putString(RuntimeProtocol.META_SCAN_TOKEN, token)
+                putInt(RuntimeProtocol.META_SCAN_RECORDS, result.records)
+                putInt(RuntimeProtocol.META_SCAN_CHUNKS, result.chunks)
+                putString(RuntimeProtocol.META_SCAN_PAYLOAD, result.payload)
+                putString(RuntimeProtocol.META_SCAN_ERROR, result.error)
+            }
+            diagnostic("DIRECT_SCAN_READ user=$user chunk=$chunkIndex records=${result.records}")
+            return ack
+        }
 
         if (operation == RuntimeProtocol.OP_CHUNK) {
             if (protocol != RuntimeProtocol.VERSION) {
@@ -1577,7 +1671,7 @@ class ListCleanerModule : XposedModule() {
             return false
         }
 
-        snapshot = RuntimeRuleSnapshot(
+        val primarySnapshot = RuntimeRuleSnapshot(
             configured = config.rules.map { it.id }.toSet(),
             displayMode = config.mode,
             priorities = config.priorities,
@@ -1589,7 +1683,28 @@ class ListCleanerModule : XposedModule() {
             hiddenFromApps = config.hiddenFromApps,
             visibilityCompat = config.visibilityCompat,
             textMenuOrder = config.textMenuOrder,
+            directShareTypes = config.directShareTypes,
+            surfaceFilters = config.surfaceFilters,
         )
+        // Per-user snapshots: each configured space compiles its own rules; unconfigured users
+        // resolve through snapshotForUser's fail-open copy.
+        val scopeSnapshots = config.userSpaces.mapValues { (_, space) ->
+            RuntimeRuleSnapshot(
+                configured = space.rules.map { it.id }.toSet(),
+                displayMode = space.mode,
+                priorities = space.priorities,
+                openTypes = space.openTypes,
+                browserLinks = space.browserLinks,
+                diagnostic = space.diagnostic,
+                managerAppId = config.managerAppId,
+                digest = digest,
+                hiddenFromApps = space.hiddenFromApps,
+                visibilityCompat = space.visibilityCompat,
+                directShareTypes = space.directShareTypes,
+                surfaceFilters = space.surfaceFilters,
+            )
+        }
+        policies = UserPolicyGeneration(primarySnapshot, scopeSnapshots)
         lastEncodedConfig = encoded
         RuntimeComponentPolicy.publish(
             managerAppId = config.managerAppId,
@@ -1693,7 +1808,7 @@ class ListCleanerModule : XposedModule() {
                 }.getOrNull()
             }.toSet()
 
-        snapshot = RuntimeRuleSnapshot(
+        val primarySnapshot = RuntimeRuleSnapshot(
             configured = rules,
             displayMode = mode,
             priorities = priorities,
@@ -1712,6 +1827,7 @@ class ListCleanerModule : XposedModule() {
                     scopes = visibilityScopes
                 ).validated(),
         )
+        policies = UserPolicyGeneration(primarySnapshot, emptyMap())
         lastEncodedConfig = null
         record(
             "RULES_READ reason=$reason source=$source count=${rules.size} " +

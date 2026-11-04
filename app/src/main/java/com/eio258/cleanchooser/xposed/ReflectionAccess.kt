@@ -1,0 +1,88 @@
+package com.eio258.cleanchooser.xposed
+
+import java.lang.reflect.Field
+import java.lang.reflect.Method
+import java.util.concurrent.ConcurrentHashMap
+
+/** Small cached reflection helper shared by framework/OEM adapters. All reads fail open. */
+internal object ReflectionAccess {
+    fun userId(handle: Any?): Int? =
+        (invokeNoArg(handle, "getIdentifier") as? Number)?.toInt()?.takeIf { it in 0..21474 }
+
+    private data class MethodKey(val type: Class<*>, val name: String)
+    private data class FieldKey(val type: Class<*>, val names: String)
+    private data class MethodLookup(val value: Method?)
+    private data class FieldLookup(val value: Field?)
+
+    private val methods = ConcurrentHashMap<MethodKey, MethodLookup>()
+    private val fields = ConcurrentHashMap<FieldKey, FieldLookup>()
+
+    fun hierarchyMethods(type: Class<*>): Sequence<Method> =
+        generateSequence(type as Class<*>?) { it.superclass }
+            .flatMap { it.declaredMethods.asSequence() }
+
+    fun hierarchyFields(type: Class<*>): Sequence<Field> =
+        generateSequence(type as Class<*>?) { it.superclass }
+            .flatMap { it.declaredFields.asSequence() }
+
+    fun noArgMethod(type: Class<*>?, name: String): Method? {
+        type ?: return null
+        return methods.computeIfAbsent(MethodKey(type, name)) { key ->
+            MethodLookup(
+                hierarchyMethods(key.type)
+                    .firstOrNull { it.name == key.name && it.parameterCount == 0 }
+                    ?.apply { isAccessible = true }
+            )
+        }.value
+    }
+
+    fun invokeNoArg(value: Any?, name: String): Any? = runCatching {
+        val receiver = value ?: return@runCatching null
+        noArgMethod(receiver.javaClass, name)?.invoke(receiver)
+    }.getOrNull()
+
+    fun invokeFirstNoArg(value: Any?, names: Iterable<String>): Any? {
+        val receiver = value ?: return null
+        names.forEach { name ->
+            val result = runCatching { noArgMethod(receiver.javaClass, name)?.invoke(receiver) }.getOrNull()
+            if (result != null) return result
+        }
+        return null
+    }
+
+    fun field(type: Class<*>?, vararg names: String): Field? {
+        type ?: return null
+        if (names.isEmpty()) return null
+        val key = FieldKey(type, names.joinToString("\u0000"))
+        return fields.computeIfAbsent(key) {
+            val wanted = names.toSet()
+            FieldLookup(
+                hierarchyFields(type)
+                    .firstOrNull { candidate -> candidate.name in wanted }
+                    ?.apply { isAccessible = true }
+            )
+        }.value
+    }
+
+    fun readField(value: Any?, vararg names: String): Any? = runCatching {
+        val receiver = value ?: return@runCatching null
+        field(receiver.javaClass, *names)?.get(receiver)
+    }.getOrNull()
+
+    /** Replace one presentation-only return holder. False means unknown AOSP object shape. */
+    fun writeField(value: Any?, replacement: Any?, vararg names: String): Boolean =
+        runCatching {
+            val receiver = value ?: return@runCatching false
+            val target = field(receiver.javaClass, *names) ?: return@runCatching false
+            target.set(receiver, replacement)
+            true
+        }.getOrDefault(false)
+
+    fun readString(value: Any?, vararg methodNames: String): String? {
+        val receiver = value ?: return null
+        methodNames.forEach { name ->
+            (invokeNoArg(receiver, name) as? String)?.let { return it }
+        }
+        return null
+    }
+}
