@@ -28,22 +28,6 @@ import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.UserSpace
 
-/**
- * 轻量空间选择器：当前空间名 + 下拉切换。只有一个空间（无 root / 单用户设备）时
- * 整体不渲染。由 WorkbenchScreen 顶部接线使用。
- *
- * 接线方式（不改 WorkbenchScreen 也可用，示例由集成方放入 Column 顶部、
- * above the SegmentedTabs):
- * ```
- * val spaces by vm.spaceManager.spaces.collectAsState()
- * val activeSpace by vm.repository.activeSpace.collectAsState()
- * SpaceSelectorBar(
- *     spaces = spaces,
- *     selectedUserId = activeSpace,
- *     onSelect = { scope.launch { vm.switchSpace(it) } }
- * )
- * ```
- */
 @Composable
 fun SpaceSelectorBar(
     spaces: List<UserSpace>,
