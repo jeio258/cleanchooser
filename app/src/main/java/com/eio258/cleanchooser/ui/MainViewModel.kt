@@ -614,6 +614,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     // Multi-user space selector (clones / work profiles). Empty or single-space hides the bar.
     private val spaceManager = com.eio258.cleanchooser.data.UserSpaceManager(application)
 
+    init {
+        viewModelScope.launch {
+            runCatching { spaceManager.refresh() }
+        }
+    }
+
     val spaceSelectorItems: StateFlow<List<com.eio258.cleanchooser.data.UserSpace>> =
         kotlinx.coroutines.flow.combine(spaceManager.spaces, app.rules.activeSpace) { spaces, active ->
             listOf(com.eio258.cleanchooser.data.UserSpace(0, "user 0")) +
