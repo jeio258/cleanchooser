@@ -30,6 +30,7 @@ internal class MenuSnapshotProbe {
     private val memo = MenuPolicyMemo()
 
     @Volatile private var policy: RomMenuPolicy? = null
+    @Volatile private var classLoader: ClassLoader? = null
     @Volatile private var logger: ((String) -> Unit)? = null
     @Volatile private var systemContext: Context? = null
     @Volatile private var encoded: String = ""
@@ -37,18 +38,30 @@ internal class MenuSnapshotProbe {
     fun encodedSnapshot(): String = encoded
 
     fun initialize(classLoader: ClassLoader, record: (String) -> Unit) {
+        this.classLoader = classLoader
         logger = record
-        policy = runCatching { RomMenuPolicy(classLoader) }.getOrElse {
-            record("MENU_PROBE_UNAVAILABLE error=${it.javaClass.simpleName}")
+        // RomMenuPolicy is built lazily on the first evaluate: ColorOS extension factories are
+        // not ready at onSystemServerStarting and return null there (txtoi builds lazily too).
+        record("MENU_PROBE_DEFERRED")
+    }
+
+    private fun policyOrUnavailable(): RomMenuPolicy? {
+        policy?.let { return it }
+        val loader = classLoader ?: return null
+        val built = runCatching { RomMenuPolicy(loader) }.getOrElse {
+            logger?.invoke("MENU_PROBE_UNAVAILABLE error=${it.javaClass.simpleName} msg=${it.message}")
             null
-        }
-        if (policy != null) record("MENU_PROBE_READY")
+        } ?: return null
+        policy = built
+        logger?.invoke("MENU_PROBE_READY")
+        return built
+    }
     }
 
     /** candidates: (packageName, className) of PROCESS_TEXT activities, in probe order. */
     @Synchronized
     fun evaluate(candidates: List<Pair<String, String>>) {
-        val rom = policy ?: return
+        val rom = policyOrUnavailable() ?: return
         if (candidates.isEmpty()) return
         val now = android.os.SystemClock.elapsedRealtime()
         val key = MenuPolicyMemo.fingerprint(candidates)
