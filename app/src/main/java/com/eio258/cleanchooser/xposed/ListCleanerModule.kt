@@ -275,10 +275,10 @@ class ListCleanerModule : XposedModule() {
         runCatching {
             DirectShareActiveScanBridge.initialize(param.classLoader, ::record)
         }.onFailure { record("DIRECT_SCAN_BRIDGE_INIT_FAILED error=${it.javaClass.name}") }
-        menuProbe = MenuSnapshotProbe(
-            register = { method, hooker -> hook(method).intercept(hooker) },
-            diagnostic = { message -> record(message) }
-        ).also { probe -> runCatching { probe.install(param.classLoader) } }
+        menuProbe = MenuSnapshotProbe().also { probe ->
+            runCatching { probe.initialize(param.classLoader, ::record) }
+                .onFailure { record("MENU_PROBE_INIT_FAILED error=${it.javaClass.simpleName}") }
+        }
     }
 
     override fun onPackageReady(param: PackageReadyParam) {
@@ -1446,9 +1446,62 @@ class ListCleanerModule : XposedModule() {
             return original
         }
 
-        val replacement = transform(
+
+            // Observe the ROM text menu for PROCESS_TEXT queries: candidates from the live
+            // result feed the evaluate-style probe (memoized, fail-open).
+            if (kind == IntentKind.PROCESS_TEXT && !explicit && menuProbe != null) {
+                runCatching {
+                    val candidates = extracted.values.mapNotNull { value ->
+                        val info = (value as? ResolveInfo)?.activityInfo ?: return@mapNotNull null
+                        info.packageName to info.name
+                    }
+                    menuProbe?.evaluate(candidates)
+                }
+            }
+
+        // queryIntentActivityOptions results start with the caller's explicit specifics; rules
+        // must only touch the generic tail that follows them (txtoi 0.8.1 semantics).
+        val optionsSpecifics = if (chain.executable.name == "queryIntentActivityOptions") {
+            chain.args.filterIsInstance<Array<Intent>>()
+                .flatMap { array -> array.mapNotNull { it?.component } }
+                .map { component ->
+                    com.eio258.cleanchooser.domain.ComponentIdentity.canonicalClassName(
+                        component.packageName, component.className, null,
+                    )
+                }
+                .toSet()
+        } else emptySet()
+
+        if (optionsSpecifics.isEmpty()) {
+            val replacement = transform(
+                kind,
+                extracted.values,
+                layer,
+                callerUid,
+                resolvedType,
+                data?.scheme,
+                data?.lastPathSegment ?: data?.path,
+                data?.host,
+            ) ?: return original
+            return runCatching { extracted.rebuild(replacement) }.getOrElse {
+                Log.e(TAG, "Failed to rebuild ${original?.javaClass?.name}; keeping original", it)
+                original
+            }
+        }
+
+        fun entryComponent(value: Any?): String? {
+            val info = (value as? ResolveInfo)?.activityInfo ?: return null
+            return com.eio258.cleanchooser.domain.ComponentIdentity.canonicalClassName(
+                info.packageName, info.name, info.targetActivity,
+            )
+        }
+        val prefix = extracted.values.filter { entryComponent(it) in optionsSpecifics }
+        val tail = extracted.values.filter { entryComponent(it) !in optionsSpecifics }
+        diagnostic("OPTIONS_PREFIX kind=$kind specifics=${optionsSpecifics.size} prefix=${prefix.size} tail=${tail.size}")
+        if (tail.isEmpty()) return original
+        val transformedTail = transform(
             kind,
-            extracted.values,
+            tail,
             layer,
             callerUid,
             resolvedType,
@@ -1456,7 +1509,7 @@ class ListCleanerModule : XposedModule() {
             data?.lastPathSegment ?: data?.path,
             data?.host,
         ) ?: return original
-        return runCatching { extracted.rebuild(replacement) }.getOrElse {
+        return runCatching { extracted.rebuild(prefix + transformedTail) }.getOrElse {
             Log.e(TAG, "Failed to rebuild ${original?.javaClass?.name}; keeping original", it)
             original
         }
@@ -1917,7 +1970,9 @@ class ListCleanerModule : XposedModule() {
     }
 
     private fun isQueryIntentActivitiesMethod(method: Method): Boolean =
-        method.name in setOf("queryIntentActivities", "queryIntentActivitiesAsUser", "queryIntentActivitiesInternal") &&
+        // queryIntentActivityOptions carries an explicit specifics array (Firefox/GeckoView and
+        // several legacy callers resolve their text menus through it).
+        method.name in setOf("queryIntentActivities", "queryIntentActivitiesAsUser", "queryIntentActivitiesInternal", "queryIntentActivityOptions") &&
             method.parameterTypes.any { Intent::class.java.isAssignableFrom(it) } &&
             (List::class.java.isAssignableFrom(method.returnType) ||
                 method.returnType.name == "android.content.pm.ParceledListSlice")

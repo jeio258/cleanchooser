@@ -28,17 +28,31 @@ data class TextMenuSnapshot(
     companion object {
         const val MAX_ITEMS = 24
         const val MAX_TITLE = 32
-        const val MAX_ENCODED = 1400
+        // ACK label rides Binder metadata; the config push already moves 20k-char chunks on
+        // the same transport, so 8 KiB is a safe budget for a fully populated menu.
+        const val MAX_ENCODED = 8192
         private val json = Json { ignoreUnknownKeys = true }
         private val serializer = ListSerializer(TextMenuItem.serializer())
 
         fun encode(items: List<TextMenuItem>): String {
-            val trimmed = items.take(MAX_ITEMS).map { item ->
+            // Progressive shrink: the ACK label is size-capped, so an oversized observation
+            // trims items (tail first) and shortens titles until it fits. Never returns empty
+            // for a non-empty input — the probe treats empty as "not observed".
+            var kept = items.take(MAX_ITEMS).map { item ->
                 item.copy(title = item.title.take(MAX_TITLE), component = item.component?.take(64))
             }
-            val raw = json.encodeToString(serializer, trimmed)
-            val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(raw.toByteArray())
-            return if (encoded.length <= MAX_ENCODED) encoded else ""
+            var titleBudget = MAX_TITLE
+            while (kept.isNotEmpty()) {
+                val raw = json.encodeToString(serializer, kept)
+                val encoded = Base64.getUrlEncoder().withoutPadding().encodeToString(raw.toByteArray())
+                if (encoded.length <= MAX_ENCODED) return encoded
+                kept = kept.dropLast(1)
+                if (kept.size <= MAX_ITEMS / 2 && titleBudget > 8) {
+                    titleBudget -= 8
+                    kept = kept.map { it.copy(title = it.title.take(titleBudget)) }
+                }
+            }
+            return ""
         }
 
         fun decode(value: String?): List<TextMenuItem>? {
