@@ -59,7 +59,7 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
             FamilyChip(label = stringResource(R.string.direct_share_family_all), selected = familyFilter == null) { familyFilter = null }
             DirectShareType.entries.forEach { family ->
                 FamilyChip(
-                    label = familyLabel(family),
+                    label = stringResource(familyLabelRes(family)),
                     selected = familyFilter == family,
                 ) { familyFilter = if (familyFilter == family) null else family }
             }
@@ -90,7 +90,8 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
                     trailing = {
                         if (row.families.isNotEmpty()) {
                             Text(
-                                row.families.joinToString("/") { familyLabel(it) },
+                                row.families.map { stringResource(familyLabelRes(it)) }
+                                    .joinToString("/"),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -192,8 +193,11 @@ private fun StatusBanner(ready: Boolean, candidates: Int, hiddenCount: Int) {
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium
             )
+            val summary = stringResource(
+                R.string.direct_share_summary, candidates, hiddenCount,
+            )
             Text(
-                stringResource(R.string.direct_share_summary, candidates.size, hiddenCount),
+                summary,
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.onSurfaceVariant
             )
@@ -215,10 +219,10 @@ private fun FamilyChip(label: String, selected: Boolean, onSelect: () -> Unit) {
     }
 }
 
-private fun familyLabel(family: DirectShareType): String = when (family) {
-    DirectShareType.TEXT -> stringResource(R.string.direct_share_type_text)
-    DirectShareType.IMAGE -> stringResource(R.string.direct_share_type_image)
-    DirectShareType.VIDEO -> stringResource(R.string.direct_share_type_video)
-    DirectShareType.AUDIO -> stringResource(R.string.direct_share_type_audio)
-    DirectShareType.FILE -> stringResource(R.string.direct_share_type_file)
+private fun familyLabelRes(family: DirectShareType): Int = when (family) {
+    DirectShareType.TEXT -> R.string.direct_share_type_text
+    DirectShareType.IMAGE -> R.string.direct_share_type_image
+    DirectShareType.VIDEO -> R.string.direct_share_type_video
+    DirectShareType.AUDIO -> R.string.direct_share_type_audio
+    DirectShareType.FILE -> R.string.direct_share_type_file
 }
