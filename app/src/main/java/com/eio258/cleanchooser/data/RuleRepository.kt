@@ -164,7 +164,9 @@ class RuleRepository(context: Context) {
                 scopes = mutableVisibilityScopes.value.toSet(),
                 fullPackages = mutableVisibilityFullPackages.value.mapValues { it.value.toSet() }
             ).validated(),
-            userSpaces = userSpaces
+            userSpaces = userSpaces,
+            directShareTypes = com.eio258.cleanchooser.domain.DirectShareTypeConfig(),
+            surfaceFilters = com.eio258.cleanchooser.domain.SurfaceFilterConfig(),
         ).validated()
     }
 
@@ -179,7 +181,7 @@ class RuleRepository(context: Context) {
         visibilityCompat = VisibilityCompatConfig(scopes = mutableVisibilityScopes.value.toSet())
     )
 
-    /** zh  StateFlowszh  fullPackages zh  */
+    /** Loads one space into the active StateFlows. */
     private fun loadSpaceIntoFlows(space: UserSpaceRules) {
         mutableRules.value = space.rules.mapNotNull { ComponentRule.fromId(it.id) }.toSet()
         mutableMode.value = space.mode
