@@ -241,11 +241,14 @@ fun HomeScreen(
                         ),
                         icon = item.icon,
                         onOpen = {
-                            vm.selectWorkbenchTab(WorkbenchTab.COMPONENTS)
+                            vm.openWorkbench(WorkbenchTab.COMPONENTS)
                             vm.openDetail(item.component.packageName)
                         },
                         trailing = {
-                            Switch(checked = true, onCheckedChange = { vm.changeComponent(item, true) })
+                            Switch(
+                                checked = item.enabled == true,
+                                onCheckedChange = { vm.changeComponent(item, it) }
+                            )
                         }
                     )
                 }
@@ -390,6 +393,12 @@ private fun ResetDefaultsSheet(
             Text(
                 stringResource(R.string.reset_default_pick),
                 style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 2.dp)
+            )
+            Text(
+                stringResource(R.string.reset_default_scope_hint),
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 2.dp)
             )

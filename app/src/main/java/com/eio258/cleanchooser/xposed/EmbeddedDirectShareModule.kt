@@ -30,6 +30,8 @@ import java.lang.reflect.Method
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /** Vendor-neutral compatibility layer for apps that embed their own Direct Share row. */
 class EmbeddedDirectShareModule : XposedModule() {
@@ -48,6 +50,10 @@ class EmbeddedDirectShareModule : XposedModule() {
     private val installedMethods = ConcurrentHashMap.newKeySet<String>()
     private val hiddenViews: MutableMap<View, HiddenViewState> =
         Collections.synchronizedMap(WeakHashMap())
+    private val mergeExecutor: ExecutorService =
+        Executors.newSingleThreadExecutor { runnable ->
+            Thread(runnable, "CleanChooser-EmbeddedDS-Merge").apply { isDaemon = true }
+        }
     private val preferences by lazy(LazyThreadSafetyMode.PUBLICATION) {
         getRemotePreferences(RuleRepository.REMOTE_PREFS)
     }
@@ -149,7 +155,7 @@ class EmbeddedDirectShareModule : XposedModule() {
         var changedLists = 0
 
         lists.forEach { list ->
-            val values = list.toList()
+            val values = runCatching { list.toList() }.getOrNull() ?: return@forEach
             if (values.isEmpty()) return@forEach
             val parsed = values.map(::parseTarget)
             if (parsed.none { it.rule != null }) return@forEach
@@ -173,31 +179,100 @@ class EmbeddedDirectShareModule : XposedModule() {
             }
 
             val replacement = keptIndices.map { values[it] }
-            list.clear()
-            list.addAll(replacement)
-            changedLists++
+            runCatching {
+                list.clear()
+                list.addAll(replacement)
+                changedLists++
+            }.onFailure { error ->
+                runCatching { list.addAll(values) }
+                record(
+                    "LIST_MUTATE_FAILED profile=${profile.id} list=${list.javaClass.name} " +
+                        "error=${error.javaClass.name} message=${error.message?.take(120) ?: "none"}"
+                )
+            }
         }
 
         val empty = adapterItemCount(adapter)?.let { it <= 0 }
             ?: (parsedCount > 0 && afterCount == 0)
         updateEmptySurface(profile, adapter, empty)
 
-        val persisted = observedPersistence.merge(observed)
         if (changedLists > 0) {
             runCatching { ReflectionAccess.noArgMethod(adapter.javaClass, "notifyDataSetChanged")?.invoke(adapter) }
                 .onFailure { record("NOTIFY_FAILED profile=${profile.id} error=${it.javaClass.name}") }
+        }
+
+        if (observed.isEmpty()) {
+            logFilterResult(
+                profile = profile,
+                changedLists = changedLists,
+                listCount = lists.size,
+                beforeCount = beforeCount,
+                afterCount = afterCount,
+                parsedCount = parsedCount,
+                selectedCount = selected.size,
+                priorityCount = priorities.size,
+                empty = empty,
+                observedCount = 0,
+                persisted = true,
+            )
+        } else {
+            val observedSnapshot = observed.toList()
+            val changedSnapshot = changedLists
+            val listCount = lists.size
+            val beforeSnapshot = beforeCount
+            val afterSnapshot = afterCount
+            val parsedSnapshot = parsedCount
+            val selectedCount = selected.size
+            val priorityCount = priorities.size
+            val emptySnapshot = empty
+            mergeExecutor.execute {
+                val persisted = runCatching { observedPersistence.merge(observedSnapshot) }
+                    .onFailure {
+                        record("OBSERVED_MERGE_FAILED profile=${profile.id} error=${it.javaClass.name}")
+                    }.getOrDefault(false)
+                logFilterResult(
+                    profile = profile,
+                    changedLists = changedSnapshot,
+                    listCount = listCount,
+                    beforeCount = beforeSnapshot,
+                    afterCount = afterSnapshot,
+                    parsedCount = parsedSnapshot,
+                    selectedCount = selectedCount,
+                    priorityCount = priorityCount,
+                    empty = emptySnapshot,
+                    observedCount = observedSnapshot.size,
+                    persisted = persisted,
+                )
+            }
+        }
+        original
+    }
+
+    private fun logFilterResult(
+        profile: EmbeddedDirectShareHostProfile,
+        changedLists: Int,
+        listCount: Int,
+        beforeCount: Int,
+        afterCount: Int,
+        parsedCount: Int,
+        selectedCount: Int,
+        priorityCount: Int,
+        empty: Boolean,
+        observedCount: Int,
+        persisted: Boolean,
+    ) {
+        if (changedLists > 0) {
             record(
                 "FILTER profile=${profile.id} lists=$changedLists before=$beforeCount after=$afterCount " +
-                    "parsed=$parsedCount selected=${selected.size} priorities=${priorities.size} " +
-                    "empty=$empty observed=${observed.size} persisted=$persisted"
+                    "parsed=$parsedCount selected=$selectedCount priorities=$priorityCount " +
+                    "empty=$empty observed=$observedCount persisted=$persisted"
             )
         } else {
             record(
-                "HIT profile=${profile.id} lists=${lists.size} parsed=$parsedCount selected=${selected.size} " +
-                    "priorities=${priorities.size} empty=$empty observed=${observed.size} persisted=$persisted"
+                "HIT profile=${profile.id} lists=$listCount parsed=$parsedCount selected=$selectedCount " +
+                    "priorities=$priorityCount empty=$empty observed=$observedCount persisted=$persisted"
             )
         }
-        original
     }
 
     private fun updateEmptySurface(profile: EmbeddedDirectShareHostProfile, adapter: Any, empty: Boolean) {
@@ -285,7 +360,14 @@ class EmbeddedDirectShareModule : XposedModule() {
                 val value = readField(field, adapter) as? MutableList<Any?> ?: return@forEach
                 if (result.none { it === value }) result += value
             }
-        return result
+        return result.filter { candidates -> candidates.any(::looksLikeDirectShareEntry) }
+    }
+
+    /** Only lists whose elements expose Direct Share entry accessors count as target lists. */
+    private fun looksLikeDirectShareEntry(value: Any?): Boolean {
+        if (value == null) return false
+        val clazz = value.javaClass
+        return ENTRY_ACCESSORS.any { ReflectionAccess.noArgMethod(clazz, it) != null }
     }
 
     private fun parseTarget(value: Any?): ParsedTarget {
@@ -351,5 +433,7 @@ class EmbeddedDirectShareModule : XposedModule() {
             "getTargetComponent",
         )
         val INTENT_ACCESSORS = listOf("getTargetIntent", "getResolvedIntent")
+        val ENTRY_ACCESSORS =
+            SHORTCUT_ACCESSORS + RESOLVE_INFO_ACCESSORS + COMPONENT_ACCESSORS + INTENT_ACCESSORS
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.state.ToggleableState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.DirectShareType
 import com.eio258.cleanchooser.domain.DirectShareTypeRules
@@ -42,7 +43,10 @@ import com.eio258.cleanchooser.domain.IntentKind
 @Composable
 fun DirectShareScreen(state: MainState, vm: MainViewModel) {
     val candidates = state.candidates.filter { it.rule.kind == IntentKind.DIRECT_SHARE }
-    var familyFilter by remember { mutableStateOf<DirectShareType?>(null) }
+    // Re-key on the active space so a space switch clears the family filter along with the
+    // rule set it was filtering against.
+    val activeSpace by vm.activeSpaceId.collectAsStateWithLifecycle()
+    var familyFilter by remember(activeSpace) { mutableStateOf<DirectShareType?>(null) }
 
     val rows = remember(candidates, state.selected, familyFilter) {
         buildDirectShareRows(candidates, state.selected, familyFilter)

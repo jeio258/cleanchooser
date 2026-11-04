@@ -15,6 +15,8 @@ public final class IntentClassification {
         if ("android.media.action.VIDEO_CAPTURE".equals(action)) return "CAPTURE_VIDEO";
         if ("android.provider.MediaStore.RECORD_SOUND".equals(action)) return "RECORD_AUDIO";
         if ("android.intent.action.PROCESS_TEXT".equals(action)) return "PROCESS_TEXT";
+        if ("android.intent.action.EDIT".equals(action)) return "EDIT";
+        if ("android.intent.action.PICK".equals(action)) return "PICK";
         if (!"android.intent.action.VIEW".equals(action)) return null;
         String s = scheme == null ? "" : scheme.toLowerCase(Locale.ROOT);
         String m = mime == null ? "" : mime.split(";", 2)[0].trim().toLowerCase(Locale.ROOT);

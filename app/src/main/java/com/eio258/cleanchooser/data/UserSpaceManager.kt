@@ -3,6 +3,7 @@ package com.eio258.cleanchooser.data
 import android.content.Context
 import android.os.Process
 import android.os.UserManager
+import android.util.Log
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.domain.AndroidUid
 import com.eio258.cleanchooser.domain.PackageIdentity
@@ -84,18 +85,34 @@ class UserSpaceManager(context: Context) {
                     app.getString(R.string.space_user_title, currentUserId)
                 )
             )
+            var reflectiveFailed = false
+            var rootFailed = false
             runCatching {
                 app.getSystemService(UserManager::class.java)?.userProfiles.orEmpty().forEach { handle ->
                     // SDK stubs may hide getIdentifier even when the device provides
-                    // it. Prefer the runtime value, with the legacy UserHandle
-                    // representation as a compatibility fallback.
+                    // it. Prefer the runtime value; as a compatibility fallback decode
+                    // the legacy UserHandle representation (hashCode() carries the full
+                    // uid, so userId = uid / 100000 per Android's uid encoding). A raw
+                    // hashCode() is never used as a userId — it fabricates a fake space
+                    // (e.g. 1010xxx) that later switchSpace() validation would reject.
                     val id = runCatching {
                         (handle.javaClass.getMethod("getIdentifier").invoke(handle) as Number).toInt()
-                    }.getOrElse { handle.hashCode() }
-                    if (id >= 0) result[id] = UserSpace(
-                        id, app.getString(R.string.space_user_title, id)
-                    )
+                    }.getOrElse {
+                        Log.w(TAG, "getIdentifier unavailable; decoding UserHandle uid fallback")
+                        val uid = handle.hashCode()
+                        if (uid > 0) uid / 100_000 else -1
+                    }
+                    if (id in 0..99999) {
+                        result[id] = UserSpace(
+                            id, app.getString(R.string.space_user_title, id)
+                        )
+                    } else {
+                        Log.w(TAG, "Discarding profile with out-of-range userId $id (no fake space created)")
+                    }
                 }
+            }.onFailure {
+                Log.w(TAG, "UserManager profile discovery failed entirely", it)
+                reflectiveFailed = true
             }
             runCatching {
                 val output = ComponentRootCommand.runReadOnly("cmd user list")
@@ -110,7 +127,12 @@ class UserSpaceManager(context: Context) {
                                     .ifEmpty { app.getString(R.string.space_user_title, id) }
                             )
                         }
-                }
+                } else rootFailed = true
+            }.onFailure { rootFailed = true }
+            if (reflectiveFailed && rootFailed && result.size <= 1) {
+                // Degraded, not silent: both discovery sources failed; only the local user
+                // is exposed so callers know enumeration is unavailable rather than empty.
+                Log.w(TAG, "User space discovery degraded: both UserManager and root sources failed")
             }
             result.values.sortedBy { it.userId }
         }
@@ -131,5 +153,9 @@ class UserSpaceManager(context: Context) {
             SpacePackageScanState.LOCAL else SpacePackageScanState.LOADING
         prefs.edit().putInt("selected_user", userId).apply()
         return true
+    }
+
+    private companion object {
+        const val TAG = "UserSpaceManager"
     }
 }

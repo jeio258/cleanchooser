@@ -74,7 +74,9 @@ internal class UnifiedShortcutEngine(private val context: Context) {
         val at: Long,
         val kinds: Set<IntentKind>,
         val packages: Set<String>,
-        val result: Result
+        val result: Result,
+        /** True for a failed root query held only as a negative-cache entry. */
+        val negative: Boolean,
     )
     private val cachedCandidates = mutableMapOf<Int, Cache>()
 
@@ -93,16 +95,26 @@ internal class UnifiedShortcutEngine(private val context: Context) {
             it.kinds == kinds && it.packages == names
         }
         val now = System.currentTimeMillis()
-        if (!force && previous != null && now - previous.at in 0..cacheMillis) {
-            return ScanSnapshot(previous.result, previous.result)
+        // Failed root queries are negative-cached with a fixed 45s backoff (mirroring
+        // BrowserLinkDiscovery) so repeated refreshes do not re-run a blocking ~60s
+        // root shell every time; the failure is retried once the window expires.
+        val ttl = if (previous?.negative == true) FAILURE_BACKOFF_MILLIS else cacheMillis
+        if (!force && previous != null && now - previous.at in 0..ttl) {
+            return ScanSnapshot(previous.result, if (previous.negative) null else previous.result)
         }
         val fresh = scan(userId, sharePackages, kinds)
-        if (fresh.status == "candidates_not_final_chooser") {
-            cachedCandidates[userId] = Cache(now, kinds, names, fresh)
-            return ScanSnapshot(fresh, fresh)
+        return when {
+            fresh.status == "candidates_not_final_chooser" -> {
+                cachedCandidates[userId] = Cache(now, kinds, names, fresh, negative = false)
+                ScanSnapshot(fresh, fresh)
+            }
+            fresh.status in NEGATIVE_CACHE_STATUSES -> {
+                // Failure or host permission denial is not evidence that saved rules vanished.
+                cachedCandidates[userId] = Cache(now, kinds, names, fresh, negative = true)
+                ScanSnapshot(fresh, previous?.result)
+            }
+            else -> ScanSnapshot(fresh, previous?.result)
         }
-        // Failure or host permission denial is not evidence that saved rules vanished.
-        return ScanSnapshot(fresh, previous?.result)
     }
 
 
@@ -248,6 +260,11 @@ internal class UnifiedShortcutEngine(private val context: Context) {
         const val MAX_PACKAGES = 256
         const val MAX_CANDIDATES = 512
         val SAFE_PACKAGE = Regex("[A-Za-z][A-Za-z0-9_.]*")
+        /** Expensive root-shell failure statuses that get a negative-cache backoff window. */
+        private val NEGATIVE_CACHE_STATUSES = setOf(
+            "query_failed", "unsupported_or_locked", "root_unavailable", "package_listing_failed"
+        )
+        private const val FAILURE_BACKOFF_MILLIS = 45_000L
     }
 }
 

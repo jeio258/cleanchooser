@@ -66,4 +66,7 @@
     <string name="direct_share_type_video">视频</string>
     <string name="direct_share_type_audio">音频</string>
     <string name="direct_share_type_file">文件</string>
+    <string name="space_this_device">本机</string>
+    <string name="reset_default_scope_hint">覆盖全部 35 类入口（含直接分享、系统入口、文本菜单）；仅作用于当前所选空间。</string>
+    <string name="space_import_target_conflict">导入冲突：多个源空间映射到同一目标用户（%1$s），请为每个源空间选择不同的目标。</string>
 </resources>

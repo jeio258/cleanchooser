@@ -119,6 +119,8 @@ class ListCleanerModule : XposedModule() {
             browserLinks = BrowserLinkConfig(),
             hiddenFromApps = emptySet(),
             textMenuOrder = emptyList(),
+            directShareTypes = com.eio258.cleanchooser.domain.DirectShareTypeConfig(),
+            surfaceFilters = com.eio258.cleanchooser.domain.SurfaceFilterConfig(),
         )
     }
 
@@ -1015,6 +1017,15 @@ class ListCleanerModule : XposedModule() {
         queryInProgress.set(true)
         try {
             if (layer == Layer.SYSTEM) pollPreferences()
+            if (layer == Layer.RESOLVER) {
+                // Resolver-side calls lose the system_server caller context, so the target user
+                // comes from the hooked method's trailing userId argument instead of Binder.
+                val targetUser = (chain.executable as? Method)
+                    ?.let { method -> resolverTargetUser(method, chain.args) }
+                if (targetUser != null && targetUser != 0) {
+                    activeQuerySnapshot.set(snapshotForUser(targetUser))
+                }
+            }
             val original = if (layer == Layer.RESOLVER) {
                 val intentIndex = chain.args.indexOfFirst { it is Intent }
                 if (intentIndex >= 0) {
@@ -1050,6 +1061,19 @@ class ListCleanerModule : XposedModule() {
             activeQuerySnapshot.remove()
             queryInProgress.remove()
         }
+    }
+
+    /**
+     * Resolver-side ApplicationPackageManager signatures carry the explicit target user only
+     * on the AsUser/Internal variants, where the trailing int is userId and any leading int
+     * is resolve flags. Plain queryIntentActivities resolves for the current user (0).
+     */
+    private fun resolverTargetUser(method: Method, args: List<Any?>): Int? {
+        if (method.name != "queryIntentActivitiesAsUser" &&
+            method.name != "queryIntentActivitiesInternal") return null
+        if (method.parameterTypes.lastOrNull() != Int::class.javaPrimitiveType) return null
+        val userId = args.lastOrNull() as? Int ?: return null
+        return userId.takeIf { it in 0 until PER_USER_RANGE }
     }
 
     private fun resolveQueryMime(

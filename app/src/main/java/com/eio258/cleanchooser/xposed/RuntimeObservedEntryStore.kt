@@ -7,7 +7,7 @@ import com.eio258.cleanchooser.domain.IntentKind
 import com.eio258.cleanchooser.domain.OBSERVABLE_ENTRY_KINDS
 import com.eio258.cleanchooser.domain.SyntheticEntryKeys
 import com.eio258.cleanchooser.domain.isPackageScopedEntry
-import java.util.concurrent.ConcurrentHashMap
+import java.util.LinkedHashMap
 
 internal data class ObservedRuntimeEntry(
     val kind: IntentKind,
@@ -24,7 +24,8 @@ internal object RuntimeObservedEntryStore {
     private const val MAX_ENTRIES = 1024
     private const val MAX_LABEL_CHARS = 160
     private const val MAX_ID_CHARS = 300
-    private val entries = ConcurrentHashMap<String, ObservedRuntimeEntry>()
+    // Access-order map: least recently touched entries sit at the head and are evicted in O(1).
+    private val entries = LinkedHashMap<String, ObservedRuntimeEntry>(16, 0.75f, true)
 
     fun observeShortcut(shortcut: ShortcutInfo) {
         if (!shortcut.isEnabled || (!shortcut.isDeclaredInManifest && !shortcut.isDynamic)) return
@@ -75,22 +76,23 @@ internal object RuntimeObservedEntryStore {
 
     private fun put(entry: ObservedRuntimeEntry) {
         val key = "${entry.userId}|${entry.kind.name}|${entry.packageName}|${entry.syntheticClass}"
-        entries[key] = entry
-        if (entries.size > MAX_ENTRIES) {
-            entries.values.sortedBy { it.observedAt }
-                .take(entries.size - MAX_ENTRIES)
-                .forEach { old ->
-                    entries.remove("${old.userId}|${old.kind.name}|${old.packageName}|${old.syntheticClass}", old)
-                }
+        synchronized(entries) {
+            entries[key] = entry
+            val iterator = entries.entries.iterator()
+            while (entries.size > MAX_ENTRIES && iterator.hasNext()) {
+                iterator.next()
+                iterator.remove()
+            }
         }
     }
 
     fun snapshot(userId: Int): List<ObservedRuntimeEntry> =
-        entries.values.filter { it.userId == userId && System.currentTimeMillis() - it.observedAt in 0..300_000L }
-            .sortedWith(
-                compareByDescending<ObservedRuntimeEntry> { it.observedAt }
-                    .thenBy { it.kind.ordinal }
-                    .thenBy { it.packageName }
-                    .thenBy { it.label }
-            )
+        synchronized(entries) {
+            entries.values.filter { it.userId == userId && System.currentTimeMillis() - it.observedAt in 0..300_000L }
+        }.sortedWith(
+            compareByDescending<ObservedRuntimeEntry> { it.observedAt }
+                .thenBy { it.kind.ordinal }
+                .thenBy { it.packageName }
+                .thenBy { it.label }
+        )
 }

@@ -551,7 +551,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                     val base = app.catalog.completeConfigured(result, updatedConfigured)
                     // System entry surfaces (settings/VPN/IME/...) join the same candidate space,
                     // deduplicated by rule id against the resolver candidates.
-                    val special = runCatching { specialEntryDiscovery.scan() }.getOrDefault(emptyList())
+                    // Package scans hit PackageManager across all users; keep it off the main thread.
+                    val special = runCatching {
+                        withContext(Dispatchers.IO) { specialEntryDiscovery.scan() }
+                    }.getOrDefault(emptyList())
                     candidates.value = base + special.filter { special ->
                         base.none { it.rule.id == special.rule.id }
                     }
@@ -622,7 +625,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     val spaceSelectorItems: StateFlow<List<com.eio258.cleanchooser.data.UserSpace>> =
         kotlinx.coroutines.flow.combine(spaceManager.spaces, app.rules.activeSpace) { spaces, active ->
-            listOf(com.eio258.cleanchooser.data.UserSpace(0, "user 0")) +
+            listOf(com.eio258.cleanchooser.data.UserSpace(0, app.getString(R.string.space_this_device))) +
                 spaces.filter { it.userId != 0 }
         }.stateIn(
             viewModelScope,
@@ -634,6 +637,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun switchSpace(userId: Int) {
         viewModelScope.launch {
             runCatching { app.rules.switchSpace(userId) }
+            // Rules and locks switch wholesale with the space; stale filters would hide
+            // entries that exist in the new space, so the workbench starts clean.
+            updateWorkbenchFilters { WorkbenchFilters() }
             refresh()
         }
     }

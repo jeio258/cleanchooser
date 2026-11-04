@@ -13,6 +13,8 @@ import java.lang.reflect.Constructor
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.security.MessageDigest
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
 
 /**
  * Observes the ROM text-selection menu from system_server.
@@ -29,6 +31,13 @@ import java.security.MessageDigest
  */
 internal class MenuSnapshotProbe {
     private val memo = ProbeOutcomeCache()
+
+    // Single-threaded daemon worker: each observation performs per-candidate PackageManager
+    // lookups plus OEM reflection, which must never stall the hooked query thread. evaluate
+    // only enqueues; a published snapshot lands asynchronously and the next poll picks it up.
+    private val probeExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "ListCleaner-MenuProbe").apply { isDaemon = true }
+    }
 
     @Volatile private var inspector: RomMenuInspector? = null
     @Volatile private var classLoader: ClassLoader? = null
@@ -59,8 +68,13 @@ internal class MenuSnapshotProbe {
     }
 
     /** candidates: (packageName, className) pairs of PROCESS_TEXT activities, in query order. */
-    @Synchronized
     fun evaluate(candidates: List<Pair<String, String>>) {
+        if (candidates.isEmpty()) return
+        probeExecutor.execute { evaluateOnProbeThread(candidates) }
+    }
+
+    @Synchronized
+    private fun evaluateOnProbeThread(candidates: List<Pair<String, String>>) {
         val inspector = inspectorOrDown() ?: return
         if (candidates.isEmpty()) return
         val now = android.os.SystemClock.elapsedRealtime()

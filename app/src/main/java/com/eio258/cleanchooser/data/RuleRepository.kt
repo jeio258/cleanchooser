@@ -120,10 +120,16 @@ class RuleRepository(context: Context) {
             // zh 
             loadSpaceIntoFlows(requireNotNull(storedSpaces[restored]))
             mutableActiveSpace.value = restored
-            storedSpaces[restored] = currentSpaceSnapshot()
+            storedSpaces[restored] = currentEditingSnapshot()
         } else {
-            // zh  map zh  0zh /zh 
-            storedSpaces[0] = currentSpaceSnapshot()
+            // zh  map zh  0zh /zh
+            storedSpaces[0] = currentEditingSnapshot()
+        }
+        // User 0 is the top-level legacy configuration per the hook contract; it must
+        // always exist so remoteSnapshot()/importSpaces() never lose it.
+        if (!storedSpaces.containsKey(0)) {
+            storedSpaces[0] = if (mutableActiveSpace.value == 0) currentEditingSnapshot()
+            else UserSpaceRules()
         }
     }
 
@@ -143,25 +149,38 @@ class RuleRepository(context: Context) {
     /**
      * Legacy ModuleConfig fields remain deserializable, but new remote snapshots always use defaults.
      *
-     * zh  active zh userSpaces zh 
-     * hook zh  Binder uid zh  user id zh  userSpaceszh  fail-openzh 
-     * SHOW_ALL + zh ModuleConfig.validated() zh  userSpaces key ∈ 1..99999zh 
-     * zh  active != 0 zh  0 zh  userSpaces zh user 0 zh 
-     * zh  `it != 0` zh 
+     * Upstream contract: "user 0 = top-level legacy fields". The hook resolves the calling
+     * Binder uid's user id, looks in userSpaces first, and falls back to the top-level fields
+     * (fail-open). Therefore the top-level fields below ALWAYS carry user 0's stored
+     * configuration — never the space currently being edited — otherwise the hook would run
+     * the active space's rules as user 0. userSpaces carries every other stored space (plus
+     * the currently edited space when it is not user 0), keyed by Android user id ∈ 1..99999
+     * (key 0 excluded; see ModuleConfig.validated()).
      */
     @Synchronized fun remoteSnapshot(): ModuleConfig {
-        val active = currentSpaceSnapshot()
+        val active = mutableActiveSpace.value
+        val activeEditing = currentEditingSnapshot()
+        // Top-level fields = user 0. If user 0 was never stored (fresh state where the only
+        // configured space is active != 0), fall back to defaults rather than leaking the
+        // active space's rules to user 0.
+        val userZero = storedSpaces[0]
+            ?: activeEditing.takeIf { active == 0 }
+            ?: UserSpaceRules()
         val userSpaces = storedSpaces.toMutableMap()
-            .apply { put(mutableActiveSpace.value, active) }
-            .filterKeys { it != mutableActiveSpace.value && it != 0 }
+            .apply { if (active != 0) put(active, activeEditing) }
+            .filterKeys { it != 0 }
         return ModuleConfig(
-            rules = mutableRules.value.toSet(), mode = mutableMode.value, priorities = mutablePriorities.value,
-            diagnostic = mutableDiagnostic.value, managerAppId = android.os.Process.myUid() % 100_000,
-            hiddenFromApps = mutableHiddenFromApps.value.toSet(), openTypes = mutableOpenTypes.value,
-            browserLinks = mutableBrowserLinks.value,
+            rules = userZero.rules.mapNotNull { ComponentRule.fromId(it.id) }.toSet(),
+            mode = userZero.mode,
+            priorities = userZero.priorities,
+            diagnostic = userZero.diagnostic,
+            managerAppId = android.os.Process.myUid() % 100_000,
+            hiddenFromApps = userZero.hiddenFromApps.toSet(),
+            openTypes = userZero.openTypes,
+            browserLinks = userZero.browserLinks,
             textMenuOrder = mutableTextMenuOrder.value,
             visibilityCompat = VisibilityCompatConfig(
-                scopes = mutableVisibilityScopes.value.toSet(),
+                scopes = userZero.visibilityCompat.scopes,
                 fullPackages = mutableVisibilityFullPackages.value.mapValues { it.value.toSet() }
             ).validated(),
             userSpaces = userSpaces,
@@ -170,7 +189,8 @@ class RuleRepository(context: Context) {
         ).validated()
     }
 
-    private fun currentSpaceSnapshot(): UserSpaceRules = UserSpaceRules(
+    /** Snapshot of the space currently being edited (the active space), from the live flows. */
+    private fun currentEditingSnapshot(): UserSpaceRules = UserSpaceRules(
         rules = mutableRules.value.toSet(),
         mode = mutableMode.value,
         priorities = mutablePriorities.value,
@@ -194,14 +214,13 @@ class RuleRepository(context: Context) {
         mutableVisibilityFullPackages.value = emptyMap()
     }
 
+    private fun encodeSpaces(): String = json.encodeToString(
+        MapSerializer(Int.serializer(), UserSpaceRules.serializer()),
+        storedSpaces.toMap()
+    )
+
     private fun persistSpaces() {
-        prefs.edit().putString(
-            KEY_USER_SPACES,
-            json.encodeToString(
-                MapSerializer(Int.serializer(), UserSpaceRules.serializer()),
-                storedSpaces.toMap()
-            )
-        ).apply()
+        prefs.edit().putString(KEY_USER_SPACES, encodeSpaces()).apply()
     }
 
     /** zh  active zh  init zh  */
@@ -230,12 +249,31 @@ class RuleRepository(context: Context) {
     @Synchronized fun switchSpace(userId: Int) {
         require(userId in 0..99999)
         if (userId == mutableActiveSpace.value) return
-        storedSpaces[mutableActiveSpace.value] = currentSpaceSnapshot()
+        storedSpaces[mutableActiveSpace.value] = currentEditingSnapshot()
+        // User 0 must always have a stored entry (hook contract: top-level fields = user 0).
+        // When leaving a non-zero space and no user-0 entry exists, seed defaults instead of
+        // leaking the previous space's config.
+        if (!storedSpaces.containsKey(0)) storedSpaces[0] = UserSpaceRules()
         loadSpaceIntoFlows(storedSpaces[userId] ?: UserSpaceRules())
         mutableActiveSpace.value = userId
-        prefs.edit().putInt(KEY_ACTIVE_SPACE, userId).apply()
-        persistSpaces()
-        persistActiveSpaceKeys()
+        // One editor transaction: active-space id, per-space map and the active space's
+        // top-level section keys are written together (previously three separate applies).
+        prefs.edit()
+            .putInt(KEY_ACTIVE_SPACE, userId)
+            .putString(KEY_USER_SPACES, encodeSpaces())
+            .putStringSet(KEY_RULES, mutableRules.value.map(ComponentRule::id).toSet())
+            .putBoolean(KEY_BLACKLIST, mutableMode.value != DisplayMode.SHOW_SELECTED)
+            .putString(KEY_DISPLAY_MODE, mutableMode.value.name)
+            .putString(KEY_PRIORITIES, encodePriorities())
+            .putString(KEY_OPEN_TYPES, json.encodeToString(OpenTypeConfig.serializer(), mutableOpenTypes.value))
+            .putString(KEY_BROWSER_LINKS, json.encodeToString(BrowserLinkConfig.serializer(), mutableBrowserLinks.value))
+            .putBoolean(KEY_DIAGNOSTIC, mutableDiagnostic.value)
+            .putStringSet(KEY_HIDDEN_FROM_APPS, mutableHiddenFromApps.value)
+            .putStringSet(KEY_VISIBILITY_SCOPES, mutableVisibilityScopes.value.map { it.name }.toSet())
+            .putBoolean(KEY_INITIALIZED, true)
+            .remove(KEY_TILES)
+            .remove(KEY_DEFAULT_OPEN)
+            .apply()
         mutableRevision.value++
     }
 
@@ -609,7 +647,7 @@ class RuleRepository(context: Context) {
     /** Snapshot includes unswitched edits, but never derives settings from another profile. */
     @Synchronized private fun allSpaceSettings(): Map<Int, UserSpaceRules> =
         storedSpaces.toMutableMap()
-            .apply { put(mutableActiveSpace.value, currentSpaceSnapshot()) }
+            .apply { put(mutableActiveSpace.value, currentEditingSnapshot()) }
             .toMap()
 
     /** Select any subset of spaces; names are informational and not trusted during restore. */
@@ -695,6 +733,15 @@ class RuleRepository(context: Context) {
 
     /** Source IDs are never assumed to be equal to target IDs on another phone. */
     @Synchronized fun importSpaces(content: String, mappings: Map<Int, Int>) {
+        // Two source spaces mapping onto one target would silently overwrite via putAll.
+        val duplicateTargets = mappings.entries.groupBy({ it.value }, { it.key }).filterValues { it.size > 1 }
+        require(duplicateTargets.isEmpty()) {
+            val detail = duplicateTargets.entries.joinToString("; ") { (target, sources) ->
+                "user $target <- sources ${sources.sorted().joinToString(", ")}"
+            }
+            "Import conflict: multiple source spaces map to the same target user ($detail). " +
+                appContext.getString(R.string.space_import_target_conflict, detail)
+        }
         val configs = decodePortableBackup(content).mapped(mappings)
         val next = allSpaceSettings().toMutableMap().apply { putAll(configs) }
         replaceSpaceSettings(next)

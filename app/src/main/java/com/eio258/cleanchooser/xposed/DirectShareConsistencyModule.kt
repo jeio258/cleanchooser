@@ -108,7 +108,13 @@ class DirectShareConsistencyModule : XposedModule() {
     private fun visibleSharePackages(receiver: Any, args: List<Any?>): Set<String>? {
         val second = args.getOrNull(1)
         if (second is List<*>) {
-            return second.mapNotNull(::displayTargetPackage).toSet()
+            val parsed = second.mapNotNull(::displayTargetPackage).toSet()
+            if (parsed.isNotEmpty()) return parsed
+            record(
+                "SECOND_LIST_UNRECOGNIZED size=${second.size} " +
+                    "element=${second.firstOrNull { it != null }?.javaClass?.name ?: "none"}"
+            )
+            return null
         }
 
         val adapter = second?.takeIf { it.javaClass.name.contains("ChooserListAdapter") }

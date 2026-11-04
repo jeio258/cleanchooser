@@ -19,7 +19,12 @@ object AppLog {
     private const val MAX_FILE_BYTES = 64 * 1024
 
     private val ring = ArrayDeque<String>()
-    private val time = SimpleDateFormat("MM-dd HH:mm:ss", Locale.US)
+
+    // SimpleDateFormat is not thread-safe; events can be logged from any thread, so each
+    // thread keeps its own formatter.
+    private val timeFormat = ThreadLocal.withInitial {
+        SimpleDateFormat("MM-dd HH:mm:ss", Locale.US)
+    }
 
     @Volatile
     private var file: File? = null
@@ -42,9 +47,11 @@ object AppLog {
     /** Crash entry: one summary line in the ring, the full trace only in the file. */
     fun crash(threadName: String, failure: Throwable) {
         val summary = "E crash on $threadName ${failure.javaClass.name}: ${failure.message}"
-        appendRaw(summary)
-        runCatching {
-            file?.appendText(Log.getStackTraceString(failure) + "\n")
+        synchronized(this) {
+            appendRaw(summary)
+            runCatching {
+                file?.appendText(Log.getStackTraceString(failure) + "\n")
+            }
         }
     }
 
@@ -62,8 +69,9 @@ object AppLog {
         appendRaw("$level $message$detail")
     }
 
+    @Synchronized
     private fun appendRaw(line: String) {
-        val stamped = "${time.format(Date())} $line"
+        val stamped = "${timeFormat.get().format(Date())} $line"
         synchronized(ring) {
             if (ring.size >= MAX_LINES) ring.removeFirst()
             ring.addLast(stamped)
