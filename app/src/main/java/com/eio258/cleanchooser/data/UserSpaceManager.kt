@@ -23,8 +23,9 @@ enum class SpacePackageScanState { LOCAL, LOADING, READY, FAILED }
  * enumerating other Android users; without it we expose the local user rather than
  * guessing whether a vendor app clone is a separate Android profile.
  *
- * 双源发现（fail-open）：UserManager.userProfiles 反射 getIdentifier 为主，
- * root `cmd user list` 补充命名；两源全部失败时只暴露当前用户，绝不虚构空间。
+ * Dual-source discovery (fail-open): UserManager.userProfiles (reflective getIdentifier)
+ * primary, root `cmd user list` for naming; if both fail only the current user is exposed,
+ * never fabricated spaces.
  */
 class UserSpaceManager(context: Context) {
     private val app = context.applicationContext
