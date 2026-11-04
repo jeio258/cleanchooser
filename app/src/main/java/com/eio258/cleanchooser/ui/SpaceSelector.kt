@@ -33,7 +33,7 @@ import com.eio258.cleanchooser.data.UserSpace
  * 整体不渲染。由 WorkbenchScreen 顶部接线使用。
  *
  * 接线方式（不改 WorkbenchScreen 也可用，示例由集成方放入 Column 顶部、
- * SegmentedTabs 之前）：
+ * above the SegmentedTabs):
  * ```
  * val spaces by vm.spaceManager.spaces.collectAsState()
  * val activeSpace by vm.repository.activeSpace.collectAsState()

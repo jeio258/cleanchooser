@@ -51,24 +51,7 @@ internal val SYSTEM_ENTRY_KINDS: List<IntentKind> = listOf(
     IntentKind.BROWSER,
 )
 
-internal fun IntentKind.systemEntryTitle(): String = when (this) {
-    IntentKind.INPUT_METHOD -> "输入法"
-    IntentKind.AUTOFILL -> "自动填充"
-    IntentKind.ACCESSIBILITY -> "无障碍"
-    IntentKind.VPN -> "VPN"
-    IntentKind.PRINT -> "打印服务"
-    IntentKind.NOTIFICATION_LISTENER -> "通知读取"
-    IntentKind.WALLPAPER -> "壁纸"
-    IntentKind.DREAM -> "屏保"
-    IntentKind.NFC_HCE -> "NFC 卡模拟"
-    IntentKind.CALL_SCREENING -> "来电筛选"
-    IntentKind.DOCUMENT_PROVIDER -> "文档提供器"
-    IntentKind.PHOTO_SOURCE -> "云相册来源"
-    IntentKind.HOME -> "桌面"
-    IntentKind.ASSISTANT -> "助手"
-    IntentKind.BROWSER -> "浏览器"
-    else -> name
-}
+internal fun IntentKind.systemEntryTitle(): Int = titleRes()
 
 @Composable
 fun SystemEntryScreen(state: MainState, vm: MainViewModel) {
@@ -96,8 +79,8 @@ fun SystemEntryScreen(state: MainState, vm: MainViewModel) {
             grouped.forEach { (kind, rows) ->
                 item(key = "header|$kind") {
                     SectionLabel(
-                        kind.systemEntryTitle(),
-                        "${rows.count { it.rule !in state.selected }}/${rows.size} 可见"
+                        stringResource(kind.systemEntryTitle()),
+                        stringResource(R.string.system_entry_visible_count, rows.count { it.rule !in state.selected }, rows.size)
                     )
                 }
                 items(rows, key = { "${it.rule.kind}|${it.rule.id}" }) { row ->
