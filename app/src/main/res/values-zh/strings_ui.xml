@@ -52,4 +52,18 @@
     <string name="system_entry_hidden_hint">已隐藏 %1$d 个系统入口；开关只影响各设置页列表，不会停用服务或组件</string>
     <string name="system_entry_unobserved">未观测到</string>
     <string name="system_entry_visible_count">%1$d/%2$d 可见</string>
+    <string name="direct_share_family_all">全部</string>
+    <string name="direct_share_sort_hint">排序由「应用优先级」统一控制；勾选即从直接分享中隐藏。</string>
+    <string name="direct_share_hidden">已隐藏</string>
+    <string name="direct_share_empty">暂未发现直接分享目标；打开一次系统分享面板后重试。</string>
+    <string name="direct_share_family_empty">当前 MIME 族下没有目标。</string>
+    <string name="direct_share_restore_all">恢复全部（%1$d）</string>
+    <string name="direct_share_status_connected">运行时已连接</string>
+    <string name="direct_share_status_waiting">等待运行时连接</string>
+    <string name="direct_share_summary">目标 %1$d 个 · 已隐藏 %2$d 个</string>
+    <string name="direct_share_type_text">文本</string>
+    <string name="direct_share_type_image">图片</string>
+    <string name="direct_share_type_video">视频</string>
+    <string name="direct_share_type_audio">音频</string>
+    <string name="direct_share_type_file">文件</string>
 </resources>

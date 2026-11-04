@@ -23,6 +23,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import com.eio258.cleanchooser.R
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -34,8 +36,8 @@ import com.eio258.cleanchooser.domain.DirectShareTypeRules
 import com.eio258.cleanchooser.domain.IntentKind
 
 /**
- * Direct Share / 桌面快捷方式简化管理页：扩展项列表 + 勾选隐藏 + MIME 族筛选。
- * 隐藏走通用 DIRECT_SHARE 规则（vm.toggle）；排序沿用应用优先级列表，这里仅给出提示。
+ * Direct Share / XXXXXXXXXXX：XXXXX + XXXX + MIME XXX。
+ * XXXXX DIRECT_SHARE XX（vm.toggle）；XXXXXXXXXXX，XXXXXXX。
  */
 @Composable
 fun DirectShareScreen(state: MainState, vm: MainViewModel) {
@@ -54,7 +56,7 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            FamilyChip(label = "全部", selected = familyFilter == null) { familyFilter = null }
+            FamilyChip(label = stringResource(R.string.direct_share_family_all), selected = familyFilter == null) { familyFilter = null }
             DirectShareType.entries.forEach { family ->
                 FamilyChip(
                     label = familyLabel(family),
@@ -69,7 +71,7 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
         ) {
             item(key = "sort-hint") {
                 Text(
-                    "排序由「应用优先级」统一控制；勾选即从直接分享中隐藏。",
+                    stringResource(R.string.direct_share_sort_hint),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 4.dp)
@@ -95,7 +97,7 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
                         }
                         if (row.hidden) {
                             Text(
-                                "已隐藏",
+                                stringResource(R.string.direct_share_hidden),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -110,8 +112,8 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            if (candidates.isEmpty()) "暂未发现直接分享目标；打开一次系统分享面板后重试。"
-                            else "当前 MIME 族下没有目标。",
+                            if (candidates.isEmpty()) stringResource(R.string.direct_share_empty)
+                            else stringResource(R.string.direct_share_family_empty),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -126,7 +128,7 @@ fun DirectShareScreen(state: MainState, vm: MainViewModel) {
                 enabled = hiddenCount > 0,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
-                Text("恢复全部（$hiddenCount）", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(stringResource(R.string.direct_share_restore_all, hiddenCount), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
     }
@@ -141,7 +143,7 @@ private data class DirectShareRow(
     val hidden: Boolean,
 )
 
-/** 未命中 MIME 证据的目标归入"全部"，不在任何族筛选中出现，避免误判。 */
+/** Targets without MIME evidence fall back to the All family. */
 private fun buildDirectShareRows(
     candidates: List<ComponentCandidate>,
     selected: Set<com.eio258.cleanchooser.domain.ComponentRule>,
@@ -186,12 +188,12 @@ private fun StatusBanner(ready: Boolean, candidates: Int, hiddenCount: Int) {
         )
         Column(Modifier.weight(1f)) {
             Text(
-                if (ready) "运行时已连接" else "等待运行时连接",
+                if (ready) stringResource(R.string.direct_share_status_connected) else stringResource(R.string.direct_share_status_waiting),
                 style = MaterialTheme.typography.bodySmall,
                 fontWeight = FontWeight.Medium
             )
             Text(
-                "目标 $candidates 个 · 已隐藏 $hiddenCount 个",
+                stringResource(R.string.direct_share_summary, candidates.size, hiddenCount),
                 style = MaterialTheme.typography.labelSmall,
                 color = colors.onSurfaceVariant
             )
@@ -214,9 +216,9 @@ private fun FamilyChip(label: String, selected: Boolean, onSelect: () -> Unit) {
 }
 
 private fun familyLabel(family: DirectShareType): String = when (family) {
-    DirectShareType.TEXT -> "文本"
-    DirectShareType.IMAGE -> "图片"
-    DirectShareType.VIDEO -> "视频"
-    DirectShareType.AUDIO -> "音频"
-    DirectShareType.FILE -> "文件"
+    DirectShareType.TEXT -> stringResource(R.string.direct_share_type_text)
+    DirectShareType.IMAGE -> stringResource(R.string.direct_share_type_image)
+    DirectShareType.VIDEO -> stringResource(R.string.direct_share_type_video)
+    DirectShareType.AUDIO -> stringResource(R.string.direct_share_type_audio)
+    DirectShareType.FILE -> stringResource(R.string.direct_share_type_file)
 }

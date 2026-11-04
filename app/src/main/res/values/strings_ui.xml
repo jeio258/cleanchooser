@@ -52,4 +52,18 @@
     <string name="system_entry_hidden_hint">%1$d system entries hidden; toggles affect the settings lists only, never the service components</string>
     <string name="system_entry_unobserved">Not observed</string>
     <string name="system_entry_visible_count">%1$d/%2$d visible</string>
+    <string name="direct_share_family_all">All</string>
+    <string name="direct_share_sort_hint">Ordering is managed by app priority; checking hides the target from Direct Share.</string>
+    <string name="direct_share_hidden">Hidden</string>
+    <string name="direct_share_empty">No Direct Share targets yet; open the system share sheet once and retry.</string>
+    <string name="direct_share_family_empty">No targets under this MIME family.</string>
+    <string name="direct_share_restore_all">Restore all (%1$d)</string>
+    <string name="direct_share_status_connected">Runtime connected</string>
+    <string name="direct_share_status_waiting">Waiting for runtime connection</string>
+    <string name="direct_share_summary">%1$d targets · %2$d hidden</string>
+    <string name="direct_share_type_text">Text</string>
+    <string name="direct_share_type_image">Image</string>
+    <string name="direct_share_type_video">Video</string>
+    <string name="direct_share_type_audio">Audio</string>
+    <string name="direct_share_type_file">File</string>
 </resources>
