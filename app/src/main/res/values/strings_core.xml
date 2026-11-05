@@ -118,4 +118,7 @@
     <string name="open_desc_sms">sms: / smsto:</string>
     <string name="nav_home">Home</string>
     <string name="nav_workbench">Workbench</string>
+    <string name="nav_apps">Apps</string>
+    <string name="nav_entries">Entries</string>
+    <string name="nav_overview">Overview</string>
 </resources>

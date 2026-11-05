@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="overview_section_faces">Surfaces</string>
+    <string name="overview_section_spaces">Spaces</string>
+    <string name="overview_section_ops">Maintenance</string>
+    <string name="overview_face_summary">Rules %1$d · Hits %2$s</string>
+    <string name="overview_face_unobserved">Not observed</string>
+    <string name="overview_face_degraded">Degraded</string>
+    <string name="overview_space_summary">Rules %1$d</string>
+    <string name="overview_space_active">Current</string>
+</resources>

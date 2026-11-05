@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="overview_section_faces">各面状态</string>
+    <string name="overview_section_spaces">空间</string>
+    <string name="overview_section_ops">运维</string>
+    <string name="overview_face_summary">规则 %1$d · 命中 %2$s</string>
+    <string name="overview_face_unobserved">未观测</string>
+    <string name="overview_face_degraded">降级</string>
+    <string name="overview_space_summary">规则 %1$d</string>
+    <string name="overview_space_active">当前</string>
+</resources>

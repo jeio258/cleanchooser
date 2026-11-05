@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 
 import android.app.Application
+import android.graphics.Bitmap
 import android.net.Uri
 import android.util.Log
 import java.io.File
@@ -53,9 +54,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 enum class Destination(val icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    HOME(Icons.Rounded.Home),
-    WORKBENCH(Icons.Rounded.GridView),
-    STATUS(Icons.Rounded.Dashboard)
+    APPS(Icons.Rounded.Home),
+    ENTRIES(Icons.Rounded.GridView),
+    OVERVIEW(Icons.Rounded.Dashboard)
 }
 
 enum class WorkbenchTab { RULES, PRIORITY, COMPONENTS, TEXT, DIRECT_SHARE, SYSTEM_ENTRY }
@@ -103,8 +104,79 @@ data class MainState(
     val browserAvailableHosts: Set<String> = emptySet(),
     val hiddenFromApps: Set<String> = emptySet(),
     val groups: List<AppGroup> = emptyList(),
-    val destination: Destination = Destination.HOME,
+    val destination: Destination = Destination.APPS,
     val runtime: RuntimeStatus = RuntimeStatus()
+)
+
+/**
+ * The node surfaces of the two-axis app-node model. Each surface groups the
+ * IntentKind taxonomy (or the root TILE scan) into one management axis and links to the
+ * workbench segment that edits it.
+ */
+enum class NodeSurface(
+    @androidx.annotation.StringRes val titleRes: Int,
+    val tab: WorkbenchTab,
+    val kinds: Set<IntentKind> = emptySet(),
+) {
+    SHARE_PANEL(
+        R.string.intent_share,
+        WorkbenchTab.RULES,
+        setOf(IntentKind.SHARE, IntentKind.SHARE_MULTIPLE, IntentKind.SEND_TO)
+    ),
+    OPEN_WITH(
+        R.string.intent_open,
+        WorkbenchTab.RULES,
+        setOf(
+            IntentKind.OPEN, IntentKind.BROWSER, IntentKind.DEEP_LINK, IntentKind.EDIT,
+            IntentKind.PICK, IntentKind.DIAL, IntentKind.GET_CONTENT, IntentKind.OPEN_DOCUMENT,
+            IntentKind.CREATE_DOCUMENT, IntentKind.CAPTURE_IMAGE, IntentKind.CAPTURE_VIDEO,
+            IntentKind.RECORD_AUDIO
+        )
+    ),
+    TEXT_MENU(R.string.text_menu_title, WorkbenchTab.TEXT, setOf(IntentKind.PROCESS_TEXT)),
+    DIRECT_SHARE(R.string.workbench_direct_share, WorkbenchTab.DIRECT_SHARE, setOf(IntentKind.DIRECT_SHARE)),
+    TILE(R.string.cleanup_tile, WorkbenchTab.COMPONENTS),
+    SYSTEM_ENTRY(
+        R.string.workbench_system_entry,
+        WorkbenchTab.SYSTEM_ENTRY,
+        SYSTEM_ENTRY_KINDS.toSet() +
+            IntentKind.CREDENTIAL_PROVIDER + IntentKind.SHORTCUT_ITEM + IntentKind.DOCUMENT_ROOT
+    );
+
+    fun contains(kind: IntentKind): Boolean = kind in kinds
+}
+
+/** One aggregated package row of the AppsScreen node list. */
+data class NodeSummary(
+    val packageName: String,
+    val appLabel: String,
+    val appIcon: Bitmap?,
+    val surfaces: List<NodeSurface>,
+    val hiddenCount: Int,
+    /** Kinds whose priority list contains this package; drives the blue "ranked" status dot. */
+    val rankKinds: Set<IntentKind>,
+    val entries: List<ComponentCandidate>,
+)
+
+/** One hit surface of a node detail page, with the entries that produced it. */
+data class NodeSurfaceGroup(
+    val surface: NodeSurface,
+    val candidates: List<ComponentCandidate>,
+    val components: List<com.eio258.cleanchooser.data.RootComponent>,
+    val hiddenCount: Int,
+)
+
+/** Read-only rules of one clone/work-profile space for the detail package. */
+data class NodeCloneRules(val userId: Int, val rules: List<ComponentRule>)
+
+/** Aggregated detail payload for NodeDetailScreen, computed per package on demand. */
+data class NodeDetail(
+    val packageName: String,
+    val appLabel: String,
+    val appIcon: Bitmap?,
+    val groups: List<NodeSurfaceGroup>,
+    val missedSurfaces: List<NodeSurface>,
+    val cloneRules: List<NodeCloneRules>,
 )
 
 class MainViewModel(application: Application) : AndroidViewModel(application) {
@@ -317,7 +389,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val debouncedQuery = query.debounce(120).distinctUntilChanged()
     private val uiFilter = MutableStateFlow(UiFilter.ALL)
     private val moduleStatus: StateFlow<ModuleStatus> = moduleRuntime.status
-    private val destination = MutableStateFlow(Destination.HOME)
+    private val destination = MutableStateFlow(Destination.APPS)
 
     /**
      * Shell state for the three-page layout. Compose state (not a StateFlow) so the
@@ -1147,10 +1219,107 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun openDetail(packageName: String) { detailTarget = packageName }
     fun closeDetail() { detailTarget = null }
 
+    // ---- App-node pages (AppsScreen / NodeDetailScreen) ----
+
+    var nodeDetailTarget by mutableStateOf<String?>(null)
+        private set
+
+    fun openNodeDetail(packageName: String) { nodeDetailTarget = packageName }
+    fun closeNodeDetail() { nodeDetailTarget = null }
+
+    private val nodeLabelComparator = com.eio258.cleanchooser.domain.displayNameComparator()
+
+    /**
+     * Aggregates the scanned candidates into per-package node rows for AppsScreen.
+     * Pure over [state] (candidates/selected/priorities) plus the tile scan, so callers can
+     * memoize it on state changes without extra flows.
+     */
+    fun nodeSummaries(state: MainState): List<NodeSummary> {
+        val summaries = state.candidates.groupBy { it.rule.packageName }.map { (pkg, items) ->
+            val first = items.first()
+            val surfaces = NodeSurface.entries.filter { surface ->
+                surface != NodeSurface.TILE && items.any { surface.contains(it.rule.kind) }
+            }
+            NodeSummary(
+                packageName = pkg,
+                appLabel = first.appLabel,
+                appIcon = first.appIcon,
+                surfaces = surfaces,
+                hiddenCount = items.count { it.rule in state.selected },
+                rankKinds = items.map { it.rule.kind }
+                    .filter { kind -> state.priorities.apps[kind].orEmpty().contains(pkg) }
+                    .toSet(),
+                entries = items
+            )
+        }
+        return summaries.sortedWith(
+            java.util.Comparator<NodeSummary> { a, b ->
+                nodeLabelComparator.compare(a.appLabel, b.appLabel)
+            }.thenComparator { a, b -> a.packageName.compareTo(b.packageName) }
+        )
+    }
+
+    /**
+     * Builds the per-surface detail payload for one package. Only surfaces the package
+     * actually appears on are rendered; the rest are returned in [NodeDetail.missedSurfaces]
+     * as one collapsed hint line. Clone-space rules come from the persisted user-space
+     * snapshot and are displayed read-only.
+     */
+    fun nodeDetail(packageName: String, state: MainState): NodeDetail {
+        val items = state.candidates.filter { it.rule.packageName == packageName }
+        val tileItems = componentScan.value.items.filter {
+            it.component.packageName == packageName && it.kind == com.eio258.cleanchooser.data.CleanupKind.TILE
+        }
+        val groups = NodeSurface.entries.mapNotNull { surface ->
+            if (surface == NodeSurface.TILE) {
+                if (tileItems.isEmpty()) return@mapNotNull null
+                NodeSurfaceGroup(
+                    surface = surface,
+                    candidates = emptyList(),
+                    components = tileItems,
+                    hiddenCount = tileItems.count { it.enabled == false && it.blocked == null }
+                )
+            } else {
+                val surfaceItems = items.filter { surface.contains(it.rule.kind) }
+                if (surfaceItems.isEmpty()) return@mapNotNull null
+                NodeSurfaceGroup(
+                    surface = surface,
+                    candidates = surfaceItems,
+                    components = emptyList(),
+                    hiddenCount = surfaceItems.count { it.rule in state.selected }
+                )
+            }
+        }
+        val cloneRules = runCatching { app.rules.remoteSnapshot().userSpaces }
+            .getOrDefault(emptyMap())
+            .mapNotNull { (userId, space) ->
+                if (userId == 0) return@mapNotNull null
+                val rules = space.rules.filter { it.packageName == packageName }
+                if (rules.isEmpty()) null else NodeCloneRules(userId, rules)
+            }
+            .sortedBy { it.userId }
+        val first = items.firstOrNull()
+        val tileFirst = tileItems.firstOrNull()
+        return NodeDetail(
+            packageName = packageName,
+            appLabel = first?.appLabel ?: tileFirst?.owner ?: packageName,
+            appIcon = first?.appIcon ?: tileFirst?.icon,
+            groups = groups,
+            missedSurfaces = NodeSurface.entries.filter { surface ->
+                groups.none { it.surface == surface }
+            },
+            cloneRules = cloneRules
+        )
+    }
+
+    /** 1-based rank of this package under one IntentKind priority list, or null when unranked. */
+    fun nodeRank(kind: IntentKind, packageName: String, priorities: PriorityConfig): Int? =
+        priorities.apps[kind].orEmpty().indexOf(packageName).takeIf { it >= 0 }?.plus(1)
+
     fun openWorkbench(tab: WorkbenchTab) {
         workbenchTab = tab
         detailTarget = null
-        destination.value = Destination.WORKBENCH
+        destination.value = Destination.ENTRIES
     }
     /**
      * Wraps the rule JSON (unchanged v11 format, unknown keys are ignored by older builds) with

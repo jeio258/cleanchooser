@@ -14,9 +14,9 @@ import com.eio258.cleanchooser.domain.VisibilityScope
 
 @StringRes
 internal fun Destination.labelRes(): Int = when (this) {
-    Destination.HOME -> R.string.nav_home
-    Destination.WORKBENCH -> R.string.nav_workbench
-    Destination.STATUS -> R.string.nav_status
+    Destination.APPS -> R.string.nav_apps
+    Destination.ENTRIES -> R.string.nav_entries
+    Destination.OVERVIEW -> R.string.nav_overview
 }
 
 @StringRes

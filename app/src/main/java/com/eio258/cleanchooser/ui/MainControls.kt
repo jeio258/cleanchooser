@@ -100,12 +100,12 @@ internal fun MainToolbar(
     var menu by remember { mutableStateOf(false) }
     TopAppBar(
         title = {
-            if (destination == Destination.WORKBENCH) {
+            if (destination == Destination.ENTRIES) {
                 CompactSearchField(query, onQuery)
             } else {
                 Text(
                     stringResource(
-                        if (destination == Destination.HOME) R.string.app_name else R.string.nav_status
+                        if (destination == Destination.APPS) R.string.app_name else R.string.nav_overview
                     ),
                     fontWeight = FontWeight.Bold,
                     maxLines = 1

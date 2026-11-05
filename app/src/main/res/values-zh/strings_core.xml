@@ -111,4 +111,7 @@
     <string name="open_desc_sms">sms: / smsto:</string>
     <string name="nav_home">首页</string>
     <string name="nav_workbench">工作台</string>
+    <string name="nav_apps">应用</string>
+    <string name="nav_entries">入口</string>
+    <string name="nav_overview">总览</string>
 </resources>

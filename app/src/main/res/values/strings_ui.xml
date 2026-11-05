@@ -71,4 +71,11 @@
     <string name="space_this_device">This device</string>
     <string name="reset_default_scope_hint">Covers all 35 entry categories (including Direct Share, system entries, and the text menu); applies only to the currently selected space.</string>
     <string name="space_import_target_conflict">Import conflict: multiple source spaces map to the same target user (%1$s). Pick a different target for each source.</string>
+
+    <string name="node_section_entries">System entries &amp; tiles</string>
+    <string name="node_row_summary">Managing %1$d surfaces · %2$s</string>
+    <string name="node_view_all_in_surface">View all in “%1$s”</string>
+    <string name="node_surfaces_absent">No entries on: %1$s</string>
+    <string name="node_detail_summary">%1$d surfaces hit · Space: %2$s</string>
+    <string name="node_clone_section">Clone rules (user %1$d)</string>
 </resources>

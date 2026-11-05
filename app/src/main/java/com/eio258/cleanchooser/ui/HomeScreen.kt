@@ -326,7 +326,7 @@ fun HomeScreen(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ResetDefaultsSheet(
+internal fun ResetDefaultsSheet(
     state: MainState,
     disabledKeys: Set<String>,
     scan: RootComponentScan,
@@ -453,7 +453,7 @@ private fun ResetDefaultsSheet(
     }
 }
 
-private data class ResetRow(val label: String, val count: Int, val onRestore: () -> Unit)
+internal data class ResetRow(val label: String, val count: Int, val onRestore: () -> Unit)
 
 @Composable
 private fun ResetSectionRow(section: ResetRow) {

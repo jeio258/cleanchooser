@@ -95,7 +95,7 @@ class MainActivity : ComponentActivity() {
                     ) {
                         TextButton(onClick = {
                             restartPromptDismissed = true
-                            vm.setDestination(Destination.STATUS)
+                            vm.setDestination(Destination.OVERVIEW)
                         }) {
                             Text(stringResource(R.string.restart_required_open_status))
                         }
@@ -109,8 +109,9 @@ class MainActivity : ComponentActivity() {
 
         BackHandler(enabled = logsOpen) { vm.closeLogs() }
         BackHandler(enabled = detailTarget != null && !logsOpen) { vm.closeDetail() }
-        BackHandler(enabled = detailTarget == null && state.destination != Destination.HOME) {
-            vm.setDestination(Destination.HOME)
+        BackHandler(enabled = vm.nodeDetailTarget != null) { vm.closeNodeDetail() }
+        BackHandler(enabled = vm.nodeDetailTarget == null && state.destination != Destination.APPS) {
+            vm.setDestination(Destination.APPS)
         }
         LifecycleResumeEffect(vm) {
             vm.refreshModuleStatus()
@@ -173,7 +174,7 @@ class MainActivity : ComponentActivity() {
                         query = state.query,
                         onQuery = vm::setQuery,
                         onRefresh = {
-                            if (state.destination == Destination.WORKBENCH &&
+                            if (state.destination == Destination.ENTRIES &&
                                 vm.workbenchTab == WorkbenchTab.COMPONENTS
                             ) {
                                 vm.refreshComponents()
@@ -218,16 +219,10 @@ class MainActivity : ComponentActivity() {
                 when {
                     logsOpen -> LogScreen(vm)
                     detailTarget != null -> AppDetailScreen(detailTarget, state, vm)
-                    state.destination == Destination.HOME -> HomeScreen(
-                        state,
-                        vm,
-                        onRestore = { restore.launch(arrayOf("application/json", "text/plain")) },
-                        onExport = { export.launch("ListCleaner-backup.json") },
-                        onCollectDiagnostics = collectDiagnostics,
-                        collectingDiagnostics = collectingDiagnostics
-                    )
-                    state.destination == Destination.WORKBENCH -> WorkbenchScreen(state, vm)
-                    else -> StatusScreen(
+                    vm.nodeDetailTarget != null -> NodeDetailScreen(vm.nodeDetailTarget!!, state, vm)
+                    state.destination == Destination.APPS -> AppsScreen(state, vm)
+                    state.destination == Destination.ENTRIES -> WorkbenchScreen(state, vm)
+                    else -> OverviewScreen(
                         state,
                         vm,
                         onRestore = { restore.launch(arrayOf("application/json", "text/plain")) },
