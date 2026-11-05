@@ -175,7 +175,7 @@ class MainActivity : ComponentActivity() {
                         onBack = vm::closeDetail
                     )
                 }
-                // 三个主视图各自渲染自己的头（应用/入口/总览），Scaffold 不再提供全局顶栏。
+                // Each main view renders its own header; the Scaffold no longer provides a global top bar.
             },
             bottomBar = {
                 if (detailTarget == null && !logsOpen) {
