@@ -18,13 +18,20 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.domain.DisplayMode
 
 internal val AppShapes = androidx.compose.material3.Shapes(
     extraSmall = RoundedCornerShape(8.dp),
@@ -339,4 +347,56 @@ internal fun CardDivider() {
         modifier = Modifier.padding(start = 64.dp),
         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
     )
+}
+
+/**
+ * Shared resident global-mode pill with an inline dropdown for the three DisplayMode
+ * values. AppsScreen keeps a private copy for now; new shells use this one.
+ */
+@Composable
+internal fun ModePill(mode: DisplayMode, onChange: (DisplayMode) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .clip(AppShape.tile)
+                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                .clickable { expanded = true }
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                stringResource(
+                    R.string.compact_filter_format,
+                    stringResource(R.string.dashboard_global_mode),
+                    stringResource(mode.titleRes())
+                ),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(
+                Icons.Rounded.ExpandMore,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            DisplayMode.entries.forEach { value ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(value.titleRes())) },
+                    trailingIcon = if (value == mode) {
+                        { Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(18.dp)) }
+                    } else null,
+                    onClick = {
+                        expanded = false
+                        if (value != mode) onChange(value)
+                    }
+                )
+            }
+        }
+    }
 }

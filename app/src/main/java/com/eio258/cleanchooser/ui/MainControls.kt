@@ -34,7 +34,11 @@ import com.eio258.cleanchooser.R
  * request focus on composition: the field is part of the page, not a transient search mode.
  */
 @Composable
-internal fun CompactSearchField(query: String, onQueryChange: (String) -> Unit) {
+internal fun CompactSearchField(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
     val colors = MaterialTheme.colorScheme
     val keyboard = LocalSoftwareKeyboardController.current
     BasicTextField(
@@ -45,7 +49,7 @@ internal fun CompactSearchField(query: String, onQueryChange: (String) -> Unit) 
         keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
         textStyle = MaterialTheme.typography.bodyMedium.copy(color = colors.onSurface),
         cursorBrush = SolidColor(colors.primary),
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
             .heightIn(min = 44.dp)
             .background(colors.surfaceContainerHigh, RoundedCornerShape(12.dp)),
         decorationBox = { innerTextField ->
@@ -87,54 +91,13 @@ internal fun CompactSearchField(query: String, onQueryChange: (String) -> Unit) 
     )
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-internal fun MainToolbar(
-    destination: Destination,
-    query: String,
-    onQuery: (String) -> Unit,
-    onRefresh: () -> Unit,
-    onRestore: () -> Unit,
-    onBackup: () -> Unit
-) {
-    var menu by remember { mutableStateOf(false) }
-    TopAppBar(
-        title = {
-            if (destination == Destination.ENTRIES) {
-                CompactSearchField(query, onQuery)
-            } else {
-                Text(
-                    stringResource(
-                        if (destination == Destination.APPS) R.string.app_name else R.string.nav_overview
-                    ),
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1
-                )
-            }
-        },
-        actions = {
-            IconButton(onClick = onRefresh) {
-                Icon(Icons.Rounded.Refresh, stringResource(R.string.common_refresh))
-            }
-            Box {
-                IconButton(onClick = { menu = true }) {
-                    Icon(Icons.Rounded.MoreVert, stringResource(R.string.common_more))
-                }
-                DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.restore_backup)) },
-                        onClick = { menu = false; onRestore() }
-                    )
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.export_backup)) },
-                        onClick = { menu = false; onBackup() }
-                    )
-                }
-            }
-        }
-    )
-}
-
+/**
+ * Legacy top bar still hosted by MainActivity's Scaffold. For Destination.ENTRIES the
+ * title previously held the resident search field; that role now lives in the new
+ * WorkbenchScreen shell (face title + mode/space pills + search), so the ENTRIES branch
+ * here shows a duplicated search field until the integrator removes this top bar for
+ * that destination. AppsScreen and the overview screen do not use MainToolbar.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun DetailTopBar(title: String, onBack: () -> Unit) {

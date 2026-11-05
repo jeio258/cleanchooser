@@ -108,7 +108,8 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
 
         LazyColumn(
             Modifier.weight(1f).fillMaxWidth(),
-            contentPadding = PaddingValues(bottom = 24.dp)
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             item(key = "header-apps") {
                 SectionLabel(
@@ -151,11 +152,7 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
 private fun NodeAppRow(summary: NodeSummary, activeSpaceId: Int, onOpen: () -> Unit) {
     AppEntryRow(
         title = summary.appLabel,
-        subtitle = stringResource(
-            R.string.node_row_summary,
-            summary.surfaces.size,
-            summary.surfaces.map { stringResource(it.titleRes) }.joinToString("/")
-        ),
+        subtitle = "",
         icon = summary.appIcon,
         onOpen = onOpen,
         trailing = {
@@ -176,29 +173,13 @@ private fun NodeEntryNodeRow(
 ) {
     AppEntryRow(
         title = candidate.activityLabel.ifBlank { candidate.appLabel },
-        subtitle = stringResource(
-            R.string.list_summary_format,
-            candidate.appLabel,
-            stringResource(candidate.rule.kind.titleRes())
-        ),
+        subtitle = "",
         icon = candidate.appIcon,
         onOpen = onOpen,
         modifier = Modifier.alpha(if (hidden) 0.6f else 1f),
         showChevron = true,
         trailing = {
-            if (hidden) {
-                Text(
-                    stringResource(R.string.text_menu_hidden),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            } else if (candidate.unavailable) {
-                Text(
-                    stringResource(R.string.system_entry_unobserved),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            NodeStatusDots(hidden = hidden, ranked = false, neutral = !hidden && candidate.unavailable)
         }
     )
 }
@@ -208,21 +189,13 @@ private fun TileNodeRow(item: RootComponent, onOpen: () -> Unit) {
     AppEntryRow(
         title = item.label.takeIf { it.any(Char::isLetterOrDigit) }
             ?: item.component.className.substringAfterLast('.'),
-        subtitle = stringResource(
-            R.string.list_summary_format,
-            stringResource(item.kind.titleRes()),
-            item.owner
-        ),
+        subtitle = "",
         icon = item.icon,
         onOpen = onOpen,
         showChevron = true,
         trailing = {
             if (item.enabled == false && item.blocked == null) {
-                Text(
-                    stringResource(R.string.text_menu_hidden),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.error
-                )
+                NodeStatusDots(hidden = true, ranked = false)
             }
         }
     )
@@ -245,8 +218,8 @@ internal fun NodeUserBadge(userId: Int) {
 
 /** Aggregate status dots for one node row: red = has hidden entries, blue = has ranking. */
 @Composable
-private fun NodeStatusDots(hidden: Boolean, ranked: Boolean) {
-    if (!hidden && !ranked) return
+private fun NodeStatusDots(hidden: Boolean, ranked: Boolean, neutral: Boolean = false) {
+    if (!hidden && !ranked && !neutral) return
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
         if (hidden) {
             Box(
@@ -258,54 +231,12 @@ private fun NodeStatusDots(hidden: Boolean, ranked: Boolean) {
                 Modifier.size(8.dp).background(MaterialTheme.colorScheme.primary, CircleShape)
             )
         }
+        if (neutral) {
+            Box(
+                Modifier.size(8.dp).background(MaterialTheme.colorScheme.onSurfaceVariant, CircleShape)
+            )
+        }
     }
 }
 
 /** Resident global-mode pill with an inline dropdown for the three DisplayMode values. */
-@Composable
-private fun ModePill(mode: DisplayMode, onChange: (DisplayMode) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier
-                .clip(AppShape.tile)
-                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                .clickable { expanded = true }
-                .padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
-            Text(
-                stringResource(
-                    R.string.compact_filter_format,
-                    stringResource(R.string.dashboard_global_mode),
-                    stringResource(mode.titleRes())
-                ),
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Icon(
-                Icons.Rounded.ExpandMore,
-                contentDescription = null,
-                modifier = Modifier.size(14.dp),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            DisplayMode.entries.forEach { value ->
-                DropdownMenuItem(
-                    text = { Text(stringResource(value.titleRes())) },
-                    trailingIcon = if (value == mode) {
-                        { Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(18.dp)) }
-                    } else null,
-                    onClick = {
-                        expanded = false
-                        if (value != mode) onChange(value)
-                    }
-                )
-            }
-        }
-    }
-}

@@ -168,30 +168,14 @@ class MainActivity : ComponentActivity() {
             topBar = {
                 if (logsOpen) {
                     DetailTopBar(title = stringResource(R.string.logs_title), onBack = vm::closeLogs)
-                } else if (detailTarget == null) {
-                    MainToolbar(
-                        destination = state.destination,
-                        query = state.query,
-                        onQuery = vm::setQuery,
-                        onRefresh = {
-                            if (state.destination == Destination.ENTRIES &&
-                                vm.workbenchTab == WorkbenchTab.COMPONENTS
-                            ) {
-                                vm.refreshComponents()
-                            } else {
-                                vm.refresh(forceCatalog = true)
-                            }
-                        },
-                        onRestore = { restore.launch(arrayOf("application/json", "text/plain")) },
-                        onBackup = { export.launch("ListCleaner-backup.json") }
-                    )
-                } else {
+                } else if (detailTarget != null) {
                     DetailTopBar(
                         title = state.candidates.firstOrNull { it.rule.packageName == detailTarget }
                             ?.appLabel ?: detailTarget,
                         onBack = vm::closeDetail
                     )
                 }
+                // 三个主视图各自渲染自己的头（应用/入口/总览），Scaffold 不再提供全局顶栏。
             },
             bottomBar = {
                 if (detailTarget == null && !logsOpen) {

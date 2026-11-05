@@ -26,14 +26,14 @@ import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
-import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.Tune
-import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
@@ -372,7 +372,7 @@ fun OverviewScreen(
     val faces = listOf(
         OverviewFace(
             WorkbenchTab.RULES,
-            Icons.Rounded.VisibilityOff,
+            Icons.Rounded.Share,
             state.selected.size,
             caps[RuntimeCapability.FILTERING]?.hits,
             capabilityLevel(RuntimeCapability.FILTERING)
@@ -393,14 +393,14 @@ fun OverviewScreen(
         ),
         OverviewFace(
             WorkbenchTab.TEXT,
-            Icons.Rounded.TextFields,
+            Icons.Rounded.Keyboard,
             state.candidates.count { it.rule.kind == IntentKind.PROCESS_TEXT && it.rule in state.selected },
             null,
             if (state.runtime.textMenuObserved) OverviewFaceLevel.OK else OverviewFaceLevel.UNOBSERVED
         ),
         OverviewFace(
             WorkbenchTab.DIRECT_SHARE,
-            Icons.Rounded.Share,
+            Icons.Rounded.Link,
             state.candidates.count { it.rule.kind == IntentKind.DIRECT_SHARE && it.rule in state.selected },
             null,
             if (state.runtime.ready) OverviewFaceLevel.OK else OverviewFaceLevel.DEGRADED

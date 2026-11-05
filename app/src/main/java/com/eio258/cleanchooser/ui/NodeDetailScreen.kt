@@ -12,8 +12,15 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Description
+import androidx.compose.material.icons.rounded.Keyboard
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -66,9 +73,9 @@ fun NodeDetailScreen(packageName: String, state: MainState, vm: MainViewModel) {
 
         detail.groups.forEach { group ->
             item(key = "header-${group.surface.name}") {
-                SectionLabel(
-                    stringResource(group.surface.titleRes),
-                    stringResource(
+                NodeSectionHeader(
+                    surface = group.surface,
+                    hint = stringResource(
                         R.string.system_entry_visible_count,
                         totalOf(group) - group.hiddenCount,
                         totalOf(group)
@@ -123,6 +130,43 @@ fun NodeDetailScreen(packageName: String, state: MainState, vm: MainViewModel) {
 
 private fun totalOf(group: NodeSurfaceGroup): Int = group.candidates.size + group.components.size
 
+/** Section header carrying the surface's semantic icon so each face is recognizable at a glance. */
+@Composable
+private fun NodeSectionHeader(surface: NodeSurface, hint: String) {
+    val icon = when (surface) {
+        NodeSurface.SHARE_PANEL -> Icons.Rounded.Share
+        NodeSurface.OPEN_WITH -> Icons.Rounded.Description
+        NodeSurface.TEXT_MENU -> Icons.Rounded.Keyboard
+        NodeSurface.DIRECT_SHARE -> Icons.Rounded.Link
+        NodeSurface.TILE -> Icons.Rounded.Widgets
+        NodeSurface.SYSTEM_ENTRY -> Icons.Rounded.Settings
+    }
+    Row(
+        Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            stringResource(surface.titleRes),
+            modifier = Modifier.padding(start = 6.dp),
+            style = MaterialTheme.typography.titleSmall
+        )
+        Text(
+            hint,
+            modifier = Modifier.padding(start = 8.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
 @Composable
 private fun NodeHero(
     appLabel: String,
@@ -133,11 +177,11 @@ private fun NodeHero(
 ) {
     AppCard(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            AppIcon(bitmap = appIcon, appLabel = appLabel, size = 48.dp)
+            AppIcon(bitmap = appIcon, appLabel = appLabel, size = 56.dp)
             Column(Modifier.weight(1f)) {
                 Text(
                     appLabel,
@@ -159,6 +203,19 @@ private fun NodeHero(
                     color = MaterialTheme.colorScheme.primary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
+                )
+            }
+            Surface(
+                shape = AppShape.tile,
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text(
+                    stringResource(R.string.node_hero_surface_badge, surfaceCount),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    maxLines = 1
                 )
             }
         }
