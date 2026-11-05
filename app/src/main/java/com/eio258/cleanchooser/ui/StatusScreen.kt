@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -14,7 +15,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -27,15 +30,17 @@ import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.FileUpload
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Keyboard
-import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Link
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.RestartAlt
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Smartphone
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -56,10 +61,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eio258.cleanchooser.BuildConfig
 import com.eio258.cleanchooser.R
@@ -334,9 +343,9 @@ private fun ActionRow(content: @Composable RowScope.() -> Unit) {
 }
 
 /**
- * Overview page (the upgraded status page): a permanent pill row on top, one row per
- * workbench surface, the space list, and the maintenance section migrated from the old
- * status page. Independently renderable; the shell screens are handled by the integrator.
+ * Overview page (the upgraded status page): a permanent pill row on top, one compact
+ * row per workbench surface, the space list, and a three-row maintenance section.
+ * Independently renderable; the shell screens are handled by the integrator.
  */
 @Composable
 fun OverviewScreen(
@@ -432,11 +441,10 @@ fun OverviewScreen(
             )
         }
 
-        SectionLabel(stringResource(R.string.overview_section_faces))
+        OverviewSectionLabel(stringResource(R.string.overview_section_faces))
         AppCard {
-            Column(Modifier.padding(vertical = 4.dp)) {
-                faces.forEachIndexed { index, face ->
-                    if (index > 0) CardDivider()
+            Column {
+                faces.forEach { face ->
                     OverviewFaceRow(face) {
                         vm.selectWorkbenchTab(face.tab)
                         vm.setDestination(Destination.ENTRIES)
@@ -445,18 +453,18 @@ fun OverviewScreen(
             }
         }
 
-        SectionLabel(stringResource(R.string.overview_section_spaces))
+        OverviewSectionLabel(stringResource(R.string.overview_section_spaces))
         AppCard {
-            Column(Modifier.padding(vertical = 4.dp)) {
-                spaces.forEachIndexed { index, space ->
-                    if (index > 0) CardDivider()
+            Column {
+                spaces.forEach { space ->
                     OverviewSpaceRow(
+                        icon = if (space.userId == 0) Icons.Rounded.Smartphone else Icons.Rounded.Person,
                         title = space.title,
                         active = space.userId == activeSpace,
                         summary = if (space.userId == activeSpace) {
                             stringResource(R.string.overview_space_summary, state.selected.size)
                         } else {
-                            stringResource(R.string.space_switch)
+                            null
                         },
                         onSwitch = { vm.switchSpace(space.userId) }
                     )
@@ -464,45 +472,54 @@ fun OverviewScreen(
             }
         }
 
-        SectionLabel(stringResource(R.string.overview_section_ops))
+        OverviewSectionLabel(stringResource(R.string.overview_section_ops))
         AppCard {
             Column {
                 OverviewActionRow(stringResource(R.string.logs_title), Icons.Rounded.History, vm::openLogs)
-                CardDivider()
-                OverviewActionRow(stringResource(R.string.dashboard_restore_json), Icons.Rounded.FileDownload, onRestore)
-                CardDivider()
-                OverviewActionRow(stringResource(R.string.dashboard_export_json), Icons.Rounded.FileUpload, onExport)
-                CardDivider()
-                OverviewActionRow(
-                    stringResource(R.string.home_diagnostic_short),
-                    Icons.Rounded.BugReport,
-                    onCollectDiagnostics,
-                    enabled = !collectingDiagnostics
-                )
-                CardDivider()
-                OverviewActionRow(
-                    stringResource(R.string.dashboard_inspect_file),
-                    Icons.Rounded.Search,
-                    onInspectFile,
-                    enabled = !checkingFile
-                )
-                CardDivider()
-                OverviewActionRow(
-                    stringResource(R.string.home_reset_default),
-                    Icons.Rounded.RestartAlt,
-                    onClick = { resetSheetOpen = true }
-                )
-                CardDivider()
-                Row(
-                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                OverviewMenuRow(
+                    title = stringResource(R.string.home_reset_default) + " · " +
+                        stringResource(R.string.home_diagnostic_short),
+                    icon = Icons.Rounded.RestartAlt
                 ) {
-                    Text(
-                        stringResource(R.string.diagnostic_mode),
-                        Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodyMedium
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.home_reset_default)) },
+                        leadingIcon = { Icon(Icons.Rounded.RestartAlt, null, Modifier.size(18.dp)) },
+                        onClick = { resetSheetOpen = true }
                     )
-                    Switch(state.diagnosticMode, vm::setDiagnosticMode)
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.dashboard_export_diagnostics)) },
+                        leadingIcon = { Icon(Icons.Rounded.BugReport, null, Modifier.size(18.dp)) },
+                        enabled = !collectingDiagnostics,
+                        onClick = onCollectDiagnostics
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.dashboard_inspect_file)) },
+                        leadingIcon = { Icon(Icons.Rounded.Search, null, Modifier.size(18.dp)) },
+                        enabled = !checkingFile,
+                        onClick = onInspectFile
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.diagnostic_mode)) },
+                        trailingIcon = {
+                            Checkbox(checked = state.diagnosticMode, onCheckedChange = null)
+                        },
+                        onClick = { vm.setDiagnosticMode(!state.diagnosticMode) }
+                    )
+                }
+                OverviewMenuRow(
+                    title = stringResource(R.string.dashboard_data_backup),
+                    icon = Icons.Rounded.FileUpload
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.dashboard_restore_json)) },
+                        leadingIcon = { Icon(Icons.Rounded.FileDownload, null, Modifier.size(18.dp)) },
+                        onClick = onRestore
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.dashboard_export_json)) },
+                        leadingIcon = { Icon(Icons.Rounded.FileUpload, null, Modifier.size(18.dp)) },
+                        onClick = onExport
+                    )
                 }
             }
         }
@@ -566,6 +583,17 @@ private data class OverviewFace(
     val level: OverviewFaceLevel,
 )
 
+/** Small gray section caption above each overview card ("[zh]" / "[zh]" / "[zh]"). */
+@Composable
+private fun OverviewSectionLabel(title: String) {
+    Text(
+        title,
+        modifier = Modifier.padding(start = 4.dp, top = 6.dp, bottom = 2.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
 @Composable
 private fun OverviewModePill(
     mode: com.eio258.cleanchooser.domain.DisplayMode,
@@ -617,87 +645,105 @@ private fun OverviewModePill(
     }
 }
 
+/**
+ * One surface row in the "[zh]" card: 20dp circular primary icon, a bold 12.5sp
+ * name and a 10.5sp gray summary. Abnormal surfaces get a 3dp red edge bar, a dimmed
+ * name and the reason appended to the summary.
+ */
 @Composable
 private fun OverviewFaceRow(face: OverviewFace, onOpen: () -> Unit) {
+    val abnormal = face.level != OverviewFaceLevel.OK
+    val degraded = face.level == OverviewFaceLevel.DEGRADED
+    val baseSummary = stringResource(
+        R.string.overview_face_summary,
+        face.rules,
+        face.hits?.toString() ?: "—"
+    )
+    val reason = if (abnormal) {
+        stringResource(
+            if (degraded) R.string.overview_face_degraded
+            else R.string.overview_face_unobserved
+        )
+    } else {
+        null
+    }
+    val reasonColor = if (degraded) MaterialTheme.colorScheme.error
+    else MaterialTheme.colorScheme.onSurfaceVariant
+    val summary = buildAnnotatedString {
+        append(baseSummary)
+        if (reason != null) {
+            append(" · ")
+            withStyle(SpanStyle(color = reasonColor)) { append(reason) }
+        }
+    }
     Row(
         Modifier.fillMaxWidth().clickable(onClick = onOpen)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Box(
-            Modifier.width(4.dp).height(34.dp).background(
-                when (face.level) {
-                    OverviewFaceLevel.DEGRADED -> MaterialTheme.colorScheme.error
-                    OverviewFaceLevel.UNOBSERVED -> MaterialTheme.colorScheme.outline
-                    OverviewFaceLevel.OK -> Color.Transparent
-                },
-                RoundedCornerShape(2.dp)
+        if (abnormal) {
+            Box(
+                Modifier.width(3.dp).height(28.dp).background(
+                    MaterialTheme.colorScheme.error,
+                    RoundedCornerShape(2.dp)
+                )
             )
-        )
+        }
         Box(
-            Modifier.size(34.dp).background(
-                if (face.level == OverviewFaceLevel.OK) MaterialTheme.colorScheme.primaryContainer
-                else MaterialTheme.colorScheme.surfaceContainerHigh,
-                AppShape.tile
+            Modifier.size(20.dp).background(
+                if (abnormal) MaterialTheme.colorScheme.surfaceContainerHigh
+                else MaterialTheme.colorScheme.primary,
+                CircleShape
             ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
                 face.icon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = if (face.level == OverviewFaceLevel.OK) MaterialTheme.colorScheme.onPrimaryContainer
-                else MaterialTheme.colorScheme.onSurfaceVariant
+                modifier = Modifier.size(12.dp),
+                tint = if (abnormal) MaterialTheme.colorScheme.onSurfaceVariant
+                else MaterialTheme.colorScheme.onPrimary
             )
         }
         Column(Modifier.weight(1f)) {
             Text(
                 stringResource(face.tab.labelRes()),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = if (face.level == OverviewFaceLevel.UNOBSERVED) MaterialTheme.colorScheme.onSurfaceVariant
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (abnormal) MaterialTheme.colorScheme.onSurfaceVariant
                 else MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
             Text(
-                stringResource(
-                    R.string.overview_face_summary,
-                    face.rules,
-                    face.hits?.toString() ?: "—"
-                ),
-                style = MaterialTheme.typography.bodySmall,
+                summary,
+                fontSize = 10.5.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        if (face.level != OverviewFaceLevel.OK) {
-            Text(
-                stringResource(
-                    if (face.level == OverviewFaceLevel.DEGRADED) R.string.overview_face_degraded
-                    else R.string.overview_face_unobserved
-                ),
-                style = MaterialTheme.typography.labelSmall,
-                color = if (face.level == OverviewFaceLevel.DEGRADED) MaterialTheme.colorScheme.error
-                else MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
         Icon(
             Icons.Rounded.ChevronRight,
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.outline
         )
     }
 }
 
+/**
+ * One row in the "[zh]" card: 20dp circular icon (phone for the local user, person for
+ * clones), the space title and an optional summary; the active row carries a "[zh]"
+ * badge, the others a compact "[zh]" text button.
+ */
 @Composable
 private fun OverviewSpaceRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
     title: String,
     active: Boolean,
-    summary: String,
+    summary: String?,
     onSwitch: () -> Unit,
 ) {
     Row(
@@ -705,37 +751,39 @@ private fun OverviewSpaceRow(
             .then(if (active) Modifier else Modifier.clickable(onClick = onSwitch))
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         Box(
-            Modifier.size(34.dp).background(
-                MaterialTheme.colorScheme.primaryContainer,
-                AppShape.tile
+            Modifier.size(20.dp).background(
+                MaterialTheme.colorScheme.primary,
+                CircleShape
             ),
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                Icons.Rounded.Layers,
+                icon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
-                tint = MaterialTheme.colorScheme.onPrimaryContainer
+                modifier = Modifier.size(12.dp),
+                tint = MaterialTheme.colorScheme.onPrimary
             )
         }
         Column(Modifier.weight(1f)) {
             Text(
                 title,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
+                fontSize = 12.5.sp,
+                fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
-            Text(
-                summary,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            summary?.let {
+                Text(
+                    it,
+                    fontSize = 10.5.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         if (active) {
             Surface(
@@ -744,22 +792,27 @@ private fun OverviewSpaceRow(
             ) {
                 Text(
                     stringResource(R.string.overview_space_active),
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 3.dp),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             }
         } else {
-            Icon(
-                Icons.Rounded.ChevronRight,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.outline
-            )
+            TextButton(
+                onClick = onSwitch,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp)
+            ) {
+                Text(
+                    stringResource(R.string.dashboard_switch),
+                    fontSize = 12.5.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
 
+/** One compact maintenance row: circular icon + name + chevron. */
 @Composable
 private fun OverviewActionRow(
     title: String,
@@ -770,24 +823,53 @@ private fun OverviewActionRow(
     Row(
         Modifier.fillMaxWidth()
             .then(if (enabled) Modifier.clickable(onClick = onClick) else Modifier)
-            .padding(horizontal = 16.dp, vertical = 14.dp),
+            .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Icon(
-            icon,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        Box(
+            Modifier.size(20.dp).background(
+                MaterialTheme.colorScheme.surfaceContainerHigh,
+                CircleShape
+            ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(12.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Text(
+            title,
+            modifier = Modifier.weight(1f),
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
-        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
         if (enabled) {
             Icon(
                 Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(16.dp),
                 tint = MaterialTheme.colorScheme.outline
             )
         }
+    }
+}
+
+/** Maintenance row whose chevron tap opens an inline dropdown of sub-actions. */
+@Composable
+private fun OverviewMenuRow(
+    title: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    menuContent: @Composable ColumnScope.() -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OverviewActionRow(title, icon, onClick = { expanded = true })
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }, content = menuContent)
     }
 }
