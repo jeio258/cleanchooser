@@ -1,6 +1,7 @@
 package com.eio258.cleanchooser.ui
 
 import android.graphics.Bitmap
+import com.eio258.cleanchooser.domain.AppMeta
 import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.ComponentRule
@@ -37,7 +38,9 @@ internal fun baseAppGroups(candidates: List<ComponentCandidate>): List<AppGroup>
             first.appIcon,
             first.appType,
             all.sortedBy { it.rule.kind.ordinal },
-            missing = all.all { it.unavailable }
+            // "Missing" means the package is not installed, not merely unobserved: a launcher-only
+            // app has no share/open entry yet is perfectly present.
+            missing = all.none { it.installed }
         )
     }
 
@@ -83,17 +86,25 @@ fun groupCandidates(
 fun retainConfiguredCandidates(
     items: List<ComponentCandidate>,
     selected: Set<ComponentRule>,
-    unavailableEvidence: String = "Configured but not observed during this scan; this does not mean the app is uninstalled"
+    unavailableEvidence: String = "Configured but not observed during this scan; this does not mean the app is uninstalled",
+    metaOf: (String) -> AppMeta? = { null },
 ): List<ComponentCandidate> {
     val kept = items.filter { !it.unavailable || it.rule in selected }
     val ids = kept.map { it.rule.id }.toSet()
     return kept + selected.filter { it.id !in ids }.map { rule ->
+        // Resolve the package instead of trusting the id: an app whose only configured surface is
+        // a launcher tile / shortcut never shows up in the intent scan, so it would otherwise be
+        // rendered as a bare package name with no icon.
+        val meta = metaOf(rule.packageName)
         ComponentCandidate(
-            rule,
-            rule.packageName,
-            rule.className.substringAfterLast('.'),
+            rule = rule,
+            appLabel = meta?.label ?: rule.packageName,
+            activityLabel = rule.className.substringAfterLast('.'),
+            appIcon = meta?.icon,
+            appType = meta?.type ?: AppType.USER,
             evidence = listOf(unavailableEvidence),
-            unavailable = true
+            unavailable = true,
+            installed = meta != null,
         )
     }
 }

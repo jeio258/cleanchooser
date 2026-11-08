@@ -202,7 +202,8 @@ private fun NodeEntryNodeRow(
 ) {
     AppEntryRow(
         title = candidate.activityLabel.ifBlank { candidate.appLabel },
-        subtitle = "",
+        // A component row is not an app; without the owner line it reads as a nameless app.
+        subtitle = ownerLine(candidate.appLabel, candidate.rule.packageName),
         icon = candidate.appIcon,
         onOpen = onOpen,
         modifier = Modifier.alpha(if (hidden) 0.6f else 1f),
@@ -218,7 +219,7 @@ private fun TileNodeRow(item: RootComponent, onOpen: () -> Unit) {
     AppEntryRow(
         title = item.label.takeIf { it.any(Char::isLetterOrDigit) }
             ?: item.component.className.substringAfterLast('.'),
-        subtitle = "",
+        subtitle = ownerLine(item.owner, item.component.packageName),
         icon = item.icon,
         onOpen = onOpen,
         showChevron = true,
@@ -269,3 +270,7 @@ private fun NodeStatusDots(hidden: Boolean, ranked: Boolean, neutral: Boolean = 
 }
 
 /** Resident global-mode pill with an inline dropdown for the three DisplayMode values. */
+
+/** "Owner label · package" for component rows; never repeats the package twice. */
+private fun ownerLine(owner: String, packageName: String): String =
+    if (owner.isBlank() || owner == packageName) packageName else owner + " · " + packageName

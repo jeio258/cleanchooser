@@ -25,6 +25,10 @@ import com.eio258.cleanchooser.data.ComponentRootCommand
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.data.RuleRepository
 import com.eio258.cleanchooser.domain.ComponentCandidate
+import com.eio258.cleanchooser.domain.AppMeta
+import com.eio258.cleanchooser.domain.listCleanerAppType
+import androidx.core.graphics.drawable.toBitmap
+import java.util.LinkedHashMap
 import com.eio258.cleanchooser.domain.ComponentRule
 import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.VisibilityScope
@@ -477,11 +481,37 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val uiFilter: UiFilter = UiFilter.ALL
     )
 
+    /**
+     * Package metadata for rules the intent scan cannot resolve. Cached including misses, because
+     * a configured-but-uninstalled package is re-asked on every refresh.
+     */
+    private val appMetaCache = object : LinkedHashMap<String, AppMeta?>(64, 0.75f, true) {
+        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, AppMeta?>?): Boolean =
+            size > 512
+    }
+    private val packageManager get() = app.packageManager
+
+    private fun appMeta(packageName: String): AppMeta? = synchronized(appMetaCache) {
+        if (appMetaCache.containsKey(packageName)) return appMetaCache[packageName]
+        val meta = runCatching {
+            val info = packageManager.getApplicationInfo(packageName, 0)
+            AppMeta(
+                label = runCatching { info.loadLabel(packageManager).toString() }
+                    .getOrDefault(packageName),
+                icon = runCatching { info.loadIcon(packageManager).toBitmap(96, 96) }.getOrNull(),
+                type = info.listCleanerAppType(),
+            )
+        }.getOrNull()
+        appMetaCache[packageName] = meta
+        meta
+    }
+
     private val preparedCandidates = combine(candidates, app.rules.rules) { scanned, selected ->
         val items = retainConfiguredCandidates(
             scanned,
             selected,
-            app.getString(R.string.candidate_configured_not_observed)
+            app.getString(R.string.candidate_configured_not_observed),
+            ::appMeta
         )
         PreparedCandidates(items, selected, baseAppGroups(items))
     }.stateIn(
@@ -1247,7 +1277,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 surfaces = surfaces,
                 hiddenCount = items.count { it.rule in state.selected },
                 appType = first.appType,
-                isMissing = items.all { it.unavailable },
+                isMissing = items.none { it.installed },
                 rankKinds = items.map { it.rule.kind }
                     .filter { kind -> state.priorities.apps[kind].orEmpty().contains(pkg) }
                     .toSet(),

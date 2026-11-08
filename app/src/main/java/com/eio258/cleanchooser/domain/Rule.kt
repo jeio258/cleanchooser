@@ -80,6 +80,8 @@ data class ComponentCandidate(
     val evidence: List<String> = emptyList(),
     val restricted: Boolean = false,
     val unavailable: Boolean = false,
+    /** False only when PackageManager cannot resolve the package on this device. */
+    val installed: Boolean = true,
     val broadMatch: Boolean = false,
     val browserHosts: Set<String> = emptySet()
 ) {
