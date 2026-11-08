@@ -26,6 +26,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
@@ -62,6 +63,9 @@ class MainActivity : ComponentActivity() {
         val exportMessage by vm.exportMessage.collectAsStateWithLifecycle()
         val resetMessage by vm.resetMessage.collectAsStateWithLifecycle()
         val logsOpen = vm.logsOpen
+        // Keeps each destination's list scroll position alive while a detail page is on top, so
+        // returning from an app lands where the user left off instead of at the top of the list.
+        val destinationState = rememberSaveableStateHolder()
 
         LaunchedEffect(exportMessage) {
             exportMessage?.let { toast(it, true); vm.clearExportMessage() }
@@ -202,8 +206,12 @@ class MainActivity : ComponentActivity() {
                 when {
                     logsOpen -> LogScreen(vm)
                     vm.nodeDetailTarget != null -> NodeDetailScreen(vm.nodeDetailTarget!!, state, vm)
-                    state.destination == Destination.APPS -> AppsScreen(state, vm)
-                    state.destination == Destination.ENTRIES -> WorkbenchScreen(state, vm)
+                    state.destination == Destination.APPS -> destinationState.SaveableStateProvider("apps") {
+                        AppsScreen(state, vm)
+                    }
+                    state.destination == Destination.ENTRIES -> destinationState.SaveableStateProvider("entries") {
+                        WorkbenchScreen(state, vm)
+                    }
                     else -> OverviewScreen(
                         state,
                         vm,

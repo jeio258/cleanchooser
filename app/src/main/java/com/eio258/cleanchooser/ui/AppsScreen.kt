@@ -69,8 +69,10 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
                 summary.entries.any { it.matchesQuery(query) }
         }
     }
+    // The app view lists applications only. Rules whose package is not on this device belong to
+    // rule management (entry view -> "view unmatched selected rules"), not to a list of apps.
     val appSections = remember(appNodes) {
-        sectionsByAppType(appNodes, { it.appType }, { it.isMissing })
+        sectionsByAppType(appNodes.filter { !it.isMissing }, { it.appType })
     }
 
     LaunchedEffect(Unit) { if (scan.items.isEmpty()) vm.refreshComponents() }
@@ -116,13 +118,10 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
             appSections.forEach { section ->
                 item(key = "header-apps-" + (section.type?.name ?: "missing")) {
                     SectionLabel(
-                        title = when {
-                            showTypeHeaders -> appSectionTitle(section.type)
-                            // A lone leftover bucket must still say so; a plain count would hide
-                            // that none of these packages exist on the device any more.
-                            section.type == null ->
-                                stringResource(R.string.app_section_missing_count, section.items.size)
-                            else -> stringResource(R.string.app_list_count, section.items.size)
+                        title = if (showTypeHeaders) {
+                            appSectionTitle(section.type)
+                        } else {
+                            stringResource(R.string.app_list_count, section.items.size)
                         },
                         hint = if (showTypeHeaders) section.items.size.toString() else null,
                         compact = true
