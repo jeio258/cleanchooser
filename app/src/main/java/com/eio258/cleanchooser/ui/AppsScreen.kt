@@ -44,7 +44,6 @@ import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.domain.DisplayMode
 import com.eio258.cleanchooser.domain.ComponentCandidate
-import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.displayNameComparator
 
 /**
@@ -70,12 +69,7 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
                 summary.entries.any { it.matchesQuery(query) }
         }
     }
-    val appSections = remember(appNodes) {
-        AppType.entries.mapNotNull { type ->
-            val inType = appNodes.filter { it.appType == type }
-            inType.takeIf { it.isNotEmpty() }?.let { type to it }
-        }
-    }
+    val appSections = remember(appNodes) { sectionsByAppType(appNodes) { it.appType } }
     val entryNodes = remember(state.candidates, query) {
         state.candidates
             .filter { NodeSurface.SYSTEM_ENTRY.contains(it.rule.kind) && it.matchesQuery(query) }
@@ -134,14 +128,20 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
             if (appSections.isEmpty()) {
                 item(key = "empty-apps") { EmptyHint(stringResource(R.string.no_matching_components)) }
             }
-            appSections.forEach { (sectionType, sectionNodes) ->
-                item(key = "header-apps-" + sectionType.name) {
+            val showTypeHeaders = appSections.needsTypeHeaders()
+            appSections.forEach { section ->
+                item(key = "header-apps-" + section.type.name) {
                     SectionLabel(
-                        stringResource(sectionType.titleRes()),
-                        stringResource(R.string.app_list_count, sectionNodes.size)
+                        title = if (showTypeHeaders) {
+                            stringResource(section.type.titleRes())
+                        } else {
+                            stringResource(R.string.app_list_count, section.items.size)
+                        },
+                        hint = if (showTypeHeaders) section.items.size.toString() else null,
+                        compact = true
                     )
                 }
-                items(sectionNodes, key = { "app|" + it.packageName }) { summary ->
+                items(section.items, key = { "app|" + it.packageName }) { summary ->
                     NodeAppRow(
                         summary = summary,
                         activeSpaceId = activeSpace,

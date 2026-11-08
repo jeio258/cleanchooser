@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -46,7 +45,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
-import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.DisplayMode
 
@@ -325,13 +323,26 @@ internal fun SectionLabel(
     title: String,
     hint: String? = null,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
     Row(
         modifier.fillMaxWidth()
-            .padding(start = 14.dp, end = 14.dp, top = 10.dp, bottom = 4.dp),
+            .padding(
+                start = if (compact) 16.dp else 14.dp,
+                end = 16.dp,
+                top = 10.dp,
+                bottom = if (compact) 2.dp else 4.dp
+            ),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, style = MaterialTheme.typography.titleSmall)
+        Text(
+            title,
+            style = if (compact) MaterialTheme.typography.labelMedium
+            else MaterialTheme.typography.titleSmall,
+            fontWeight = if (compact) FontWeight.SemiBold else null,
+            color = if (compact) MaterialTheme.colorScheme.onSurfaceVariant
+            else MaterialTheme.colorScheme.onSurface
+        )
         if (hint != null) {
             Text(
                 hint,
@@ -405,35 +416,6 @@ internal fun ModePill(mode: DisplayMode, onChange: (DisplayMode) -> Unit) {
     }
 }
 
-/**
- * Divider that separates user applications from system applications. Every flat application
- * list (rules, components, app nodes) uses this so the split looks identical across surfaces.
- */
-@Composable
-internal fun AppTypeSectionHeader(type: AppType, count: Int, modifier: Modifier = Modifier) {
-    Row(
-        modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            stringResource(type.titleRes()),
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            count.toString(),
-            modifier = Modifier.padding(start = 5.dp),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-    }
-}
-
-/**
- * One-tap application-class switcher: All / User apps / System apps. Answers "show me only
- * system apps" in a single tap, instead of hiding that choice inside a filter sheet.
- */
 @Composable
 internal fun AppTypeTrigger(
     current: AppTypeFilter,

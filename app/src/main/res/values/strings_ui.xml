@@ -5,7 +5,6 @@
     <string name="restore_backup">Restore backup</string>
     <string name="export_backup">Export backup</string>
     <string name="view_filter">View</string>
-    <string name="app_type_filter">Apps</string>
     <string name="compact_filter_format">%1$s: %2$s</string>
     <string name="selection_actions">Select</string>
     <string name="select_all">Select all</string>

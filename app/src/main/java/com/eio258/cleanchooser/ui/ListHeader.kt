@@ -77,7 +77,6 @@ internal fun <T> ListHeader(
     onSelectAll: (() -> Unit)? = null,
     onSelectNone: (() -> Unit)? = null,
     onInvert: (() -> Unit)? = null,
-    openSheetSignal: Int = 0,
 ) {
     // Labels are resolved once per composition so the sheet can filter on plain strings.
     val labels = channels.map { channelLabel(it) }
@@ -91,12 +90,11 @@ internal fun <T> ListHeader(
     var helpOpen by remember { mutableStateOf(false) }
     var channelQuery by remember { mutableStateOf("") }
 
-    // The collapsed shell toolbar routes its filter button through this local signal, so the
-    // six segments keep their original call signatures.
+    // The collapsed shell toolbar opens this sheet through a one-shot signal, so the six
+    // segments keep their original call signatures.
     val shellSignal = LocalFilterSheetSignal.current
-    val effectiveSignal = if (openSheetSignal > 0) openSheetSignal else shellSignal
-    if (effectiveSignal > 0) {
-        LaunchedEffect(effectiveSignal) { sheetOpen = true }
+    if (shellSignal > 0) {
+        LaunchedEffect(shellSignal) { sheetOpen = true }
     }
 
     Column(Modifier.fillMaxWidth()) {

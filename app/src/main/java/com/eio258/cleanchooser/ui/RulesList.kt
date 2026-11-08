@@ -23,8 +23,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
-import com.eio258.cleanchooser.domain.AppType
-import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.DisplayMode
 import com.eio258.cleanchooser.domain.IntentKind
@@ -191,6 +189,9 @@ fun RulesList(
     val helpText = stringResource(R.string.rules_page_intro) + "\n\n" + usageHelp + "\n\n" +
         stringResource(displayModeHelpRes(state.displayMode))
 
+    val typeSections = remember(shownGroups) { sectionsByAppType(shownGroups) { it.appType } }
+    val showTypeHeaders = typeSections.needsTypeHeaders()
+
     Column(Modifier.fillMaxSize()) {
         ListHeader(
             channels = listOf<IntentKind?>(null) + IntentKind.entries,
@@ -308,13 +309,17 @@ fun RulesList(
                     }
                 }
             }
-        // User applications first, system applications second: hiding a system entry is a
-        // deliberate action, so the two populations never interleave.
-        sectionByAppType(shownGroups).forEach { section ->
-            item(key = "apptype|" + section.type.name, contentType = "section") {
-                AppTypeSectionHeader(section.type, section.groups.size)
+        typeSections.forEach { section ->
+            if (showTypeHeaders) {
+                item(key = "apptype|" + section.type.name, contentType = "section") {
+                    SectionLabel(
+                        stringResource(section.type.titleRes()),
+                        section.items.size.toString(),
+                        compact = true
+                    )
+                }
             }
-            section.groups.forEach { group ->
+            section.items.forEach { group ->
                 item(key = "app|${group.packageName}", contentType = "app") {
                     AppRow(
                         group = group,

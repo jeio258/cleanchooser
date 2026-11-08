@@ -32,7 +32,6 @@ import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.domain.AppType
-import com.eio258.cleanchooser.domain.AppTypeFilter
 
 @StringRes
 private fun componentKindHelpRes(kind: CleanupKind?): Int = when (kind) {
@@ -185,12 +184,8 @@ fun ComponentsList(
             onInvert = { runBatch(visible) { vm.invertComponentsBulk(kind, it) } }
         )
 
-        val sectionsByType = remember(groups) {
-            AppType.entries.mapNotNull { type ->
-                val inType = groups.filter { it.value.firstOrNull()?.appType == type }
-                inType.takeIf { it.isNotEmpty() }?.let { type to it }
-            }
-        }
+        val typeSections = remember(groups) { sectionsByAppType(groups) { it.value.first().appType } }
+        val showTypeHeaders = typeSections.needsTypeHeaders()
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item(key = "status") {
@@ -216,11 +211,17 @@ fun ComponentsList(
                 }
             }
 
-            sectionsByType.forEach { (sectionType, sectionGroups) ->
-                item(key = "apptype|" + sectionType.name, contentType = "section") {
-                    AppTypeSectionHeader(sectionType, sectionGroups.size)
+            typeSections.forEach { section ->
+                if (showTypeHeaders) {
+                    item(key = "apptype|" + section.type.name, contentType = "section") {
+                        SectionLabel(
+                            stringResource(section.type.titleRes()),
+                            section.items.size.toString(),
+                            compact = true
+                        )
+                    }
                 }
-                sectionGroups.forEach { (appKey, unsorted) ->
+                section.items.forEach { (appKey, unsorted) ->
                     val components = unsorted.sortedWith(
                         compareBy({ it.kind.ordinal }, { it.label.lowercase() }, { it.id })
                     )

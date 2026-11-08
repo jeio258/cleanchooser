@@ -114,17 +114,27 @@ internal fun catalogVisible(item: ComponentCandidate, selected: Boolean, uiFilte
     item.isCatalogCandidate || (selected && (uiFilter == UiFilter.SHOW_SELECTED || uiFilter == UiFilter.LOCKED))
 
 /**
- * One user/system partition of a flat application list. Derived from the same [AppGroup] values
- * the list already renders, so every surface that lists applications gets the split for free.
+ * One application-class partition of a flat list. The single partitioning rule used by every
+ * surface that lists applications (rules, components, app nodes); callers only supply the row
+ * type and how to read its class.
  */
-data class AppTypeSection(val type: AppType, val groups: List<AppGroup>)
+data class AppTypeSection<T>(val type: AppType, val items: List<T>)
 
 /**
- * Splits groups into user applications first and system applications second, dropping empty
+ * Splits rows into user applications first and system applications second, dropping empty
  * partitions. Ordering inside a partition is preserved, so callers keep their own sort logic.
  */
-internal fun sectionByAppType(groups: List<AppGroup>): List<AppTypeSection> =
-    AppType.entries.mapNotNull { type ->
-        val inType = groups.filter { it.appType == type }
-        inType.takeIf { it.isNotEmpty() }?.let { AppTypeSection(type, it) }
-    }
+internal fun <T> sectionsByAppType(
+    items: List<T>,
+    typeOf: (T) -> AppType,
+): List<AppTypeSection<T>> = AppType.entries.mapNotNull { type ->
+    items.filter { typeOf(it) == type }
+        .takeIf { it.isNotEmpty() }
+        ?.let { AppTypeSection(type, it) }
+}
+
+/**
+ * Headers are only informative when both classes are present. With a single class the caller's
+ * own summary line (or the class switcher) already states the scope, so a header would repeat it.
+ */
+internal fun <T> List<AppTypeSection<T>>.needsTypeHeaders(): Boolean = size > 1
