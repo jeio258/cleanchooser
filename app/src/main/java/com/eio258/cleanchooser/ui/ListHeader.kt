@@ -84,9 +84,7 @@ internal fun <T> ListHeader(
     val fallbackChannel = channels.firstOrNull() ?: selectedChannel
     val channelActive = selectedChannel != fallbackChannel
     val viewActive = view != UiFilter.ALL
-    val appTypeActive = appType != AppTypeFilter.ALL
-    val activeCount = (if (channelActive) 1 else 0) + (if (viewActive) 1 else 0) +
-        (if (appTypeActive) 1 else 0)
+    val activeCount = (if (channelActive) 1 else 0) + (if (viewActive) 1 else 0)
     val hasBatch = onSelectAll != null || onSelectNone != null || onInvert != null
 
     var sheetOpen by remember { mutableStateOf(false) }
@@ -107,6 +105,7 @@ internal fun <T> ListHeader(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
+            AppTypeTrigger(current = appType, onSelect = onAppType)
             FilterTrigger(
                 label = stringResource(R.string.filter_action),
                 value = activeCount.takeIf { it > 0 }?.toString(),
@@ -135,15 +134,6 @@ internal fun <T> ListHeader(
                                 text = viewTitle(view),
                                 hint = stringResource(R.string.view_filter),
                                 onRemove = { onView(UiFilter.ALL) }
-                            )
-                        }
-                    }
-                    if (appTypeActive) {
-                        item {
-                            ActiveFilterChip(
-                                text = stringResource(appType.titleRes()),
-                                hint = stringResource(R.string.app_type_filter),
-                                onRemove = { onAppType(AppTypeFilter.ALL) }
                             )
                         }
                     }
@@ -229,16 +219,6 @@ internal fun <T> ListHeader(
                         }
                     }
 
-                    if (AppTypeFilter.entries.size > 1) {
-                        SheetSectionLabel(stringResource(R.string.app_type_filter))
-                        AppTypeFilter.entries.forEach { mode ->
-                            FilterSheetRow(
-                                label = stringResource(mode.titleRes()),
-                                selected = mode == appType,
-                                onClick = { onAppType(mode) }
-                            )
-                        }
-                    }
 
                     if (hasBatch) {
                         SheetSectionLabel(stringResource(R.string.selection_actions))

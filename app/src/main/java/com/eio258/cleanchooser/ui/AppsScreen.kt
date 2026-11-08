@@ -61,8 +61,10 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
     val summaries = remember(state) { vm.nodeSummaries(state) }
     val query = state.query
 
-    val appNodes = remember(summaries, query) {
-        if (query.isBlank()) summaries else summaries.filter { summary ->
+    val appTypeFilter = vm.workbenchFilters.appType
+    val appNodes = remember(summaries, query, appTypeFilter) {
+        val inClass = summaries.filter { appTypeFilter.matches(it.appType) }
+        if (query.isBlank()) inClass else inClass.filter { summary ->
             summary.appLabel.contains(query, ignoreCase = true) ||
                 summary.packageName.contains(query, ignoreCase = true) ||
                 summary.entries.any { it.matchesQuery(query) }
@@ -109,7 +111,18 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
                     onSelect = vm::switchSpace
                 )
             }
-            CompactSearchField(query = query, onQueryChange = vm::setQuery)
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                Box(Modifier.weight(1f)) {
+                    CompactSearchField(query = query, onQueryChange = vm::setQuery)
+                }
+                AppTypeTrigger(
+                    current = appTypeFilter,
+                    onSelect = { mode -> vm.updateWorkbenchFilters { it.copy(appType = mode) } }
+                )
+            }
             if (state.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
         }
 

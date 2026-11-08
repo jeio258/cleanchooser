@@ -24,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.domain.AppType
+import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.DisplayMode
 import com.eio258.cleanchooser.domain.IntentKind

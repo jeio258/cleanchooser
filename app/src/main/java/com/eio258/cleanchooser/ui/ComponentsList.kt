@@ -32,6 +32,7 @@ import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.domain.AppType
+import com.eio258.cleanchooser.domain.AppTypeFilter
 
 @StringRes
 private fun componentKindHelpRes(kind: CleanupKind?): Int = when (kind) {

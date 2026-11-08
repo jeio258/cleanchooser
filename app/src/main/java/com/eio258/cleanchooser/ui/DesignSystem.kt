@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ExpandMore
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.domain.AppType
+import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.DisplayMode
 
 internal val AppShapes = androidx.compose.material3.Shapes(
@@ -424,5 +427,63 @@ internal fun AppTypeSectionHeader(type: AppType, count: Int, modifier: Modifier 
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    }
+}
+
+/**
+ * One-tap application-class switcher: All / User apps / System apps. Answers "show me only
+ * system apps" in a single tap, instead of hiding that choice inside a filter sheet.
+ */
+@Composable
+internal fun AppTypeTrigger(
+    current: AppTypeFilter,
+    onSelect: (AppTypeFilter) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val active = current != AppTypeFilter.ALL
+    Box(modifier) {
+        Row(
+            Modifier
+                .clip(AppShape.tile)
+                .background(
+                    if (active) MaterialTheme.colorScheme.primaryContainer
+                    else MaterialTheme.colorScheme.surfaceContainerHigh
+                )
+                .clickable(role = Role.Button) { expanded = true }
+                .heightIn(min = 36.dp)
+                .padding(horizontal = 10.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                stringResource(current.titleRes()),
+                style = MaterialTheme.typography.labelMedium,
+                color = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(
+                Icons.Rounded.ArrowDropDown,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp),
+                tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            AppTypeFilter.entries.forEach { mode ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(mode.titleRes())) },
+                    trailingIcon = if (mode == current) {
+                        { Icon(Icons.Rounded.Check, contentDescription = null, Modifier.size(18.dp)) }
+                    } else null,
+                    onClick = {
+                        expanded = false
+                        onSelect(mode)
+                    }
+                )
+            }
+        }
     }
 }
