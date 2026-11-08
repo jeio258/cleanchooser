@@ -6,6 +6,7 @@ import androidx.compose.ui.res.stringResource
 import com.eio258.cleanchooser.R
 import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.domain.DisplayMode
+import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.IntentKind
 import com.eio258.cleanchooser.domain.OpenPreset
@@ -27,6 +28,12 @@ internal fun WorkbenchTab.labelRes(): Int = when (this) {
     WorkbenchTab.TEXT -> R.string.text_menu_title
     WorkbenchTab.DIRECT_SHARE -> R.string.workbench_direct_share
     WorkbenchTab.SYSTEM_ENTRY -> R.string.workbench_system_entry
+}
+
+@StringRes
+internal fun AppType.titleRes(): Int = when (this) {
+    AppType.USER -> R.string.filter_user_apps
+    AppType.SYSTEM -> R.string.filter_system_apps
 }
 
 @StringRes

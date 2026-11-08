@@ -44,6 +44,7 @@ import com.eio258.cleanchooser.data.CleanupKind
 import com.eio258.cleanchooser.data.RootComponent
 import com.eio258.cleanchooser.domain.DisplayMode
 import com.eio258.cleanchooser.domain.ComponentCandidate
+import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.displayNameComparator
 
 /**
@@ -65,6 +66,12 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
             summary.appLabel.contains(query, ignoreCase = true) ||
                 summary.packageName.contains(query, ignoreCase = true) ||
                 summary.entries.any { it.matchesQuery(query) }
+        }
+    }
+    val appSections = remember(appNodes) {
+        AppType.entries.mapNotNull { type ->
+            val inType = appNodes.filter { it.appType == type }
+            inType.takeIf { it.isNotEmpty() }?.let { type to it }
         }
     }
     val entryNodes = remember(state.candidates, query) {
@@ -111,21 +118,23 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
             contentPadding = PaddingValues(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            item(key = "header-apps") {
-                SectionLabel(
-                    stringResource(R.string.app_type_filter),
-                    stringResource(R.string.app_list_count, appNodes.size)
-                )
-            }
-            if (appNodes.isEmpty()) {
+            if (appSections.isEmpty()) {
                 item(key = "empty-apps") { EmptyHint(stringResource(R.string.no_matching_components)) }
             }
-            items(appNodes, key = { "app|${it.packageName}" }) { summary ->
-                NodeAppRow(
-                    summary = summary,
-                    activeSpaceId = activeSpace,
-                    onOpen = { vm.openNodeDetail(summary.packageName) }
-                )
+            appSections.forEach { (sectionType, sectionNodes) ->
+                item(key = "header-apps-" + sectionType.name) {
+                    SectionLabel(
+                        stringResource(sectionType.titleRes()),
+                        stringResource(R.string.app_list_count, sectionNodes.size)
+                    )
+                }
+                items(sectionNodes, key = { "app|" + it.packageName }) { summary ->
+                    NodeAppRow(
+                        summary = summary,
+                        activeSpaceId = activeSpace,
+                        onOpen = { vm.openNodeDetail(summary.packageName) }
+                    )
+                }
             }
 
             item(key = "header-nodes") {

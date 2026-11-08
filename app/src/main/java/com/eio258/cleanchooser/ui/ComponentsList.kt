@@ -184,6 +184,13 @@ fun ComponentsList(
             onInvert = { runBatch(visible) { vm.invertComponentsBulk(kind, it) } }
         )
 
+        val sectionsByType = remember(groups) {
+            AppType.entries.mapNotNull { type ->
+                val inType = groups.filter { it.value.firstOrNull()?.appType == type }
+                inType.takeIf { it.isNotEmpty() }?.let { type to it }
+            }
+        }
+
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
             item(key = "status") {
                 Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
@@ -208,65 +215,70 @@ fun ComponentsList(
                 }
             }
 
-            groups.forEach { (appKey, unsorted) ->
-                val components = unsorted.sortedWith(
-                    compareBy({ it.kind.ordinal }, { it.label.lowercase() }, { it.id })
-                )
-                val editableComponents = components.filter { it.blocked == null && it.enabled != null }
-                val disabledCount = editableComponents.count { it.enabled == false }
-                val selectionState = when {
-                    disabledCount == 0 -> ToggleableState.Off
-                    disabledCount == editableComponents.size -> ToggleableState.On
-                    else -> ToggleableState.Indeterminate
+            sectionsByType.forEach { (sectionType, sectionGroups) ->
+                item(key = "apptype|" + sectionType.name, contentType = "section") {
+                    AppTypeSectionHeader(sectionType, sectionGroups.size)
                 }
-                val first = components.first()
-                val lockItems = lockItemsByApp[appKey].orEmpty()
+                sectionGroups.forEach { (appKey, unsorted) ->
+                    val components = unsorted.sortedWith(
+                        compareBy({ it.kind.ordinal }, { it.label.lowercase() }, { it.id })
+                    )
+                    val editableComponents = components.filter { it.blocked == null && it.enabled != null }
+                    val disabledCount = editableComponents.count { it.enabled == false }
+                    val selectionState = when {
+                        disabledCount == 0 -> ToggleableState.Off
+                        disabledCount == editableComponents.size -> ToggleableState.On
+                        else -> ToggleableState.Indeterminate
+                    }
+                    val first = components.first()
+                    val lockItems = lockItemsByApp[appKey].orEmpty()
 
-                item(key = "app|$appKey") {
-                    val kindTitles = CleanupKind.entries
-                        .filter { entry -> components.any { it.kind == entry } }
-                        .map { stringResource(it.titleRes()) }
-                    val subtitle = buildString {
-                        append(
-                            stringResource(
-                                R.string.root_disabled_summary,
-                                components.count { it.enabled == false },
-                                components.size,
-                                kindTitles.joinToString(" · ")
-                            )
-                        )
-                        if (editableComponents.size < components.size) {
-                            append(" · ")
+                    item(key = "app|$appKey") {
+                        val kindTitles = CleanupKind.entries
+                            .filter { entry -> components.any { it.kind == entry } }
+                            .map { stringResource(it.titleRes()) }
+                        val subtitle = buildString {
                             append(
                                 stringResource(
-                                    R.string.root_display_only_count,
-                                    components.size - editableComponents.size
+                                    R.string.root_disabled_summary,
+                                    components.count { it.enabled == false },
+                                    components.size,
+                                    kindTitles.joinToString(" · ")
                                 )
                             )
-                        }
-                    }
-                    AppEntryRow(
-                        title = first.owner,
-                        subtitle = subtitle,
-                        icon = first.icon,
-                        checkState = selectionState,
-                        onCheck = {
-                            if (!busy && editableComponents.isNotEmpty()) {
-                                runBatch(editableComponents) { targets ->
-                                    vm.changeComponents(
-                                        targets,
-                                        selectionState == ToggleableState.On
+                            if (editableComponents.size < components.size) {
+                                append(" · ")
+                                append(
+                                    stringResource(
+                                        R.string.root_display_only_count,
+                                        components.size - editableComponents.size
                                     )
-                                }
+                                )
                             }
-                        },
-                        lockState = vm.componentBulkLockState(kind, appKey, lockItems),
-                        onLock = { vm.setComponentAppLocked(kind, appKey, lockItems, true) },
-                        onUnlock = { vm.setComponentAppLocked(kind, appKey, lockItems, false) },
-                        onOpen = { onDetail(first.component.packageName) }
-                    )
-                }
+                        }
+                        AppEntryRow(
+                            title = first.owner,
+                            subtitle = subtitle,
+                            icon = first.icon,
+                            checkState = selectionState,
+                            onCheck = {
+                                if (!busy && editableComponents.isNotEmpty()) {
+                                    runBatch(editableComponents) { targets ->
+                                        vm.changeComponents(
+                                            targets,
+                                            selectionState == ToggleableState.On
+                                        )
+                                    }
+                                }
+                            },
+                            lockState = vm.componentBulkLockState(kind, appKey, lockItems),
+                            onLock = { vm.setComponentAppLocked(kind, appKey, lockItems, true) },
+                            onUnlock = { vm.setComponentAppLocked(kind, appKey, lockItems, false) },
+                            onOpen = { onDetail(first.component.packageName) }
+                        )
+                    }
             }
+        }
 
             if (visible.isEmpty() && !busy) {
                 item(key = "empty") {

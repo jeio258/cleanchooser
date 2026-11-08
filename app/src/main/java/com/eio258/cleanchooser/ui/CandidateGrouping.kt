@@ -112,3 +112,19 @@ internal fun availableDeepLinkHosts(
 
 internal fun catalogVisible(item: ComponentCandidate, selected: Boolean, uiFilter: UiFilter): Boolean =
     item.isCatalogCandidate || (selected && (uiFilter == UiFilter.SHOW_SELECTED || uiFilter == UiFilter.LOCKED))
+
+/**
+ * One user/system partition of a flat application list. Derived from the same [AppGroup] values
+ * the list already renders, so every surface that lists applications gets the split for free.
+ */
+data class AppTypeSection(val type: AppType, val groups: List<AppGroup>)
+
+/**
+ * Splits groups into user applications first and system applications second, dropping empty
+ * partitions. Ordering inside a partition is preserved, so callers keep their own sort logic.
+ */
+internal fun sectionByAppType(groups: List<AppGroup>): List<AppTypeSection> =
+    AppType.entries.mapNotNull { type ->
+        val inType = groups.filter { it.appType == type }
+        inType.takeIf { it.isNotEmpty() }?.let { AppTypeSection(type, it) }
+    }

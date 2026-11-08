@@ -204,6 +204,8 @@ fun PriorityList(
             contentPadding = PaddingValues(bottom = 16.dp)
         ) {
             item(key = "controls") {
+                // No user/system partition here on purpose: the row order of this segment IS the
+                // user-defined priority list, so splitting it would reorder real data.
                 ListHeader(
                     channels = IntentKind.entries,
                     selectedChannel = kind,

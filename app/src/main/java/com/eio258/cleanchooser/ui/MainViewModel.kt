@@ -153,6 +153,7 @@ data class NodeSummary(
     val appIcon: Bitmap?,
     val surfaces: List<NodeSurface>,
     val hiddenCount: Int,
+    val appType: com.eio258.cleanchooser.domain.AppType,
     /** Kinds whose priority list contains this package; drives the blue "ranked" status dot. */
     val rankKinds: Set<IntentKind>,
     val entries: List<ComponentCandidate>,
@@ -1246,6 +1247,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 appIcon = first.appIcon,
                 surfaces = surfaces,
                 hiddenCount = items.count { it.rule in state.selected },
+                appType = first.appType,
                 rankKinds = items.map { it.rule.kind }
                     .filter { kind -> state.priorities.apps[kind].orEmpty().contains(pkg) }
                     .toSet(),

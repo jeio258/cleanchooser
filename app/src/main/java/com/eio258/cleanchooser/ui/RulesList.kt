@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.ComponentCandidate
 import com.eio258.cleanchooser.domain.DisplayMode
 import com.eio258.cleanchooser.domain.IntentKind
@@ -306,7 +307,13 @@ fun RulesList(
                     }
                 }
             }
-            shownGroups.forEach { group ->
+        // User applications first, system applications second: hiding a system entry is a
+        // deliberate action, so the two populations never interleave.
+        sectionByAppType(shownGroups).forEach { section ->
+            item(key = "apptype|" + section.type.name, contentType = "section") {
+                AppTypeSectionHeader(section.type, section.groups.size)
+            }
+            section.groups.forEach { group ->
                 item(key = "app|${group.packageName}", contentType = "app") {
                     AppRow(
                         group = group,
@@ -363,6 +370,7 @@ fun RulesList(
                     )
                 }
             }
+        }
             if (!state.loading && shownGroups.isEmpty()) {
                 item(key = "rules-empty") {
                     Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {

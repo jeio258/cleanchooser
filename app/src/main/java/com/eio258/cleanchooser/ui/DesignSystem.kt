@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.DisplayMode
 
 internal val AppShapes = androidx.compose.material3.Shapes(
@@ -398,5 +399,30 @@ internal fun ModePill(mode: DisplayMode, onChange: (DisplayMode) -> Unit) {
                 )
             }
         }
+    }
+}
+
+/**
+ * Divider that separates user applications from system applications. Every flat application
+ * list (rules, components, app nodes) uses this so the split looks identical across surfaces.
+ */
+@Composable
+internal fun AppTypeSectionHeader(type: AppType, count: Int, modifier: Modifier = Modifier) {
+    Row(
+        modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 10.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            stringResource(type.titleRes()),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            count.toString(),
+            modifier = Modifier.padding(start = 5.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
