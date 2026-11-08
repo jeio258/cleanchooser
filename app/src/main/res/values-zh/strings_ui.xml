@@ -85,7 +85,10 @@
     <string name="filter_selected_mark">已选</string>
     <string name="search_hint">搜索</string>
     <string name="workbench_switch_face">切换入口面</string>
-    <string name="app_section_missing">设备上未找到</string>
-    <string name="app_row_missing_hint">设备上未找到该应用，规则仍保留</string>
-    <string name="app_section_missing_count">设备上未找到 · %1$d</string>
+    <string name="app_section_missing">本机无此包</string>
+    <string name="app_row_missing_hint">本机没有这个包，规则仍保留</string>
+    <string name="app_section_missing_count">本机无此包 · %1$d</string>
+    <string name="app_clear_orphan_rules">清除</string>
+    <string name="app_clear_orphan_title">清除指向不存在包的规则</string>
+    <string name="app_clear_orphan_message">这 %1$d 条规则指向的包在本机不存在。删除后无法恢复，其它规则不受影响。</string>
 </resources>

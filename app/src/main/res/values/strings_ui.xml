@@ -85,7 +85,10 @@
     <string name="filter_selected_mark">Selected</string>
     <string name="search_hint">Search</string>
     <string name="workbench_switch_face">Switch face</string>
-    <string name="app_section_missing">Not found on this device</string>
-    <string name="app_row_missing_hint">Not found on this device; the rule is kept</string>
-    <string name="app_section_missing_count">Not found on this device · %1$d</string>
+    <string name="app_section_missing">Package not on this device</string>
+    <string name="app_row_missing_hint">Package not on this device; rule kept</string>
+    <string name="app_section_missing_count">Package not on this device · %1$d</string>
+    <string name="app_clear_orphan_rules">Clear</string>
+    <string name="app_clear_orphan_title">Remove rules for missing packages</string>
+    <string name="app_clear_orphan_message">%1$d rule(s) point to packages that do not exist on this device. Removing them cannot be undone; other rules are untouched.</string>
 </resources>

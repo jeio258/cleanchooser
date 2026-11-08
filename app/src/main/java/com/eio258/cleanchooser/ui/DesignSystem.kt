@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -336,6 +337,7 @@ internal fun SectionLabel(
     hint: String? = null,
     modifier: Modifier = Modifier,
     compact: Boolean = false,
+    trailing: (@Composable RowScope.() -> Unit)? = null,
 ) {
     Row(
         modifier.fillMaxWidth()
@@ -364,6 +366,10 @@ internal fun SectionLabel(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+        if (trailing != null) {
+            Spacer(Modifier.weight(1f))
+            trailing()
         }
     }
 }

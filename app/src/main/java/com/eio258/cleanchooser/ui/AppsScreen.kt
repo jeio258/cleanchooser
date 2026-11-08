@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -69,10 +71,31 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
                 summary.entries.any { it.matchesQuery(query) }
         }
     }
-    // The app view lists applications only. Rules whose package is not on this device belong to
-    // rule management (entry view -> "view unmatched selected rules"), not to a list of apps.
+    // Rules whose package cannot be resolved still need to be visible and adjustable; they are
+    // listed in their own trailing bucket instead of being hidden.
     val appSections = remember(appNodes) {
-        sectionsByAppType(appNodes.filter { !it.isMissing }, { it.appType })
+        sectionsByAppType(appNodes, { it.appType }, { it.isMissing })
+    }
+    val orphanCount = appSections.firstOrNull { it.type == null }?.items?.size ?: 0
+    var confirmClearOrphans by remember { mutableStateOf(false) }
+
+    if (confirmClearOrphans) {
+        AlertDialog(
+            onDismissRequest = { confirmClearOrphans = false },
+            title = { Text(stringResource(R.string.app_clear_orphan_title)) },
+            text = { Text(stringResource(R.string.app_clear_orphan_message, orphanCount)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    vm.clearRulesWithoutPackage()
+                    confirmClearOrphans = false
+                }) { Text(stringResource(R.string.common_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClearOrphans = false }) {
+                    Text(stringResource(R.string.common_cancel))
+                }
+            }
+        )
     }
 
     LaunchedEffect(Unit) { if (scan.items.isEmpty()) vm.refreshComponents() }
@@ -118,13 +141,26 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
             appSections.forEach { section ->
                 item(key = "header-apps-" + (section.type?.name ?: "missing")) {
                     SectionLabel(
-                        title = if (showTypeHeaders) {
-                            appSectionTitle(section.type)
-                        } else {
-                            stringResource(R.string.app_list_count, section.items.size)
+                        title = when {
+                            showTypeHeaders -> appSectionTitle(section.type)
+                            section.type == null ->
+                                stringResource(R.string.app_section_missing_count, section.items.size)
+                            else -> stringResource(R.string.app_list_count, section.items.size)
                         },
                         hint = if (showTypeHeaders) section.items.size.toString() else null,
-                        compact = true
+                        compact = true,
+                        trailing = if (section.type == null) {
+                            {
+                                TextButton(onClick = { confirmClearOrphans = true }) {
+                                    Text(
+                                        stringResource(R.string.app_clear_orphan_rules),
+                                        style = MaterialTheme.typography.labelMedium
+                                    )
+                                }
+                            }
+                        } else {
+                            null
+                        }
                     )
                 }
                 items(section.items, key = { "app|" + it.packageName }) { summary ->
@@ -144,8 +180,9 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
 private fun NodeAppRow(summary: NodeSummary, activeSpaceId: Int, onOpen: () -> Unit) {
     AppEntryRow(
         title = summary.appLabel,
-        // Only leftover rows carry a subtitle; it explains why the row shows a package name.
-        subtitle = if (summary.isMissing) stringResource(R.string.app_row_missing_hint) else "",
+        // For unresolvable packages the only honest content is what the rule actually controls:
+        // which surface it targets and which component inside it.
+        subtitle = if (summary.isMissing) missingRowSubtitle(summary) else "",
         icon = summary.appIcon,
         onOpen = onOpen,
         iconMissing = summary.isMissing,
@@ -202,3 +239,11 @@ private fun NodeStatusDots(hidden: Boolean, ranked: Boolean, neutral: Boolean = 
 /** Resident global-mode pill with an inline dropdown for the three DisplayMode values. */
 
 /** "Owner label · package" for component rows; never repeats the package twice. */
+/** "Share panel · ExternalLinkActivity" - states what the rule acts on when the app is unknown. */
+@Composable
+private fun missingRowSubtitle(summary: NodeSummary): String {
+    val first = summary.entries.firstOrNull() ?: return stringResource(R.string.app_row_missing_hint)
+    val surface = stringResource(first.rule.kind.titleRes())
+    val component = first.rule.className.substringAfterLast('.')
+    return surface + " · " + component
+}

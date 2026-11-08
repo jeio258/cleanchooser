@@ -1254,6 +1254,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     var nodeDetailTarget by mutableStateOf<String?>(null)
         private set
 
+    /**
+     * Drops selected rules whose package cannot be resolved on this device. Returns how many were
+     * removed so the caller can report it. Other rules and all other per-space sections are left
+     * untouched.
+     */
+    fun clearRulesWithoutPackage(): Int {
+        val orphans = app.rules.rules.value.filter { appMeta(it.packageName) == null }
+        if (orphans.isEmpty()) return 0
+        app.rules.setSelected(orphans, false)
+        return orphans.size
+    }
+
     fun openNodeDetail(packageName: String) { nodeDetailTarget = packageName }
     fun closeNodeDetail() { nodeDetailTarget = null }
 
