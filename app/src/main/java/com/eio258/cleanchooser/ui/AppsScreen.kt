@@ -72,24 +72,6 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
     val appSections = remember(appNodes) {
         sectionsByAppType(appNodes, { it.appType }, { it.isMissing })
     }
-    val entryNodes = remember(state.candidates, query) {
-        state.candidates
-            .filter { NodeSurface.SYSTEM_ENTRY.contains(it.rule.kind) && it.matchesQuery(query) }
-            .sortedWith(
-                java.util.Comparator<ComponentCandidate> { a, b ->
-                    displayNameComparator().compare(a.appLabel.lowercase(), b.appLabel.lowercase())
-                }.thenComparator { a, b -> a.rule.packageName.compareTo(b.rule.packageName) }
-            )
-    }
-    val tileNodes = remember(scan, query) {
-        val needle = query.trim().lowercase()
-        scan.items.filter { item ->
-            item.kind == CleanupKind.TILE && (needle.isEmpty() ||
-                item.label.lowercase().contains(needle) ||
-                item.component.className.lowercase().contains(needle) ||
-                item.component.packageName.lowercase().contains(needle))
-        }
-    }
 
     LaunchedEffect(Unit) { if (scan.items.isEmpty()) vm.refreshComponents() }
 
@@ -155,22 +137,6 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
                 }
             }
 
-            item(key = "header-nodes") {
-                SectionLabel(stringResource(R.string.node_section_entries))
-            }
-            if (entryNodes.isEmpty() && tileNodes.isEmpty()) {
-                item(key = "empty-nodes") { EmptyHint(stringResource(R.string.no_matching_components)) }
-            }
-            items(entryNodes, key = { "sys|${it.rule.id}" }) { candidate ->
-                NodeEntryNodeRow(
-                    candidate = candidate,
-                    hidden = candidate.rule in state.selected,
-                    onOpen = { vm.openNodeDetail(candidate.rule.packageName) }
-                )
-            }
-            items(tileNodes, key = { "tile|${it.id}" }) { item ->
-                TileNodeRow(item = item, onOpen = { vm.openNodeDetail(item.component.packageName) })
-            }
         }
     }
 }
@@ -194,42 +160,7 @@ private fun NodeAppRow(summary: NodeSummary, activeSpaceId: Int, onOpen: () -> U
     )
 }
 
-@Composable
-private fun NodeEntryNodeRow(
-    candidate: com.eio258.cleanchooser.domain.ComponentCandidate,
-    hidden: Boolean,
-    onOpen: () -> Unit,
-) {
-    AppEntryRow(
-        title = candidate.activityLabel.ifBlank { candidate.appLabel },
-        // A component row is not an app; without the owner line it reads as a nameless app.
-        subtitle = ownerLine(candidate.appLabel, candidate.rule.packageName),
-        icon = candidate.appIcon,
-        onOpen = onOpen,
-        modifier = Modifier.alpha(if (hidden) 0.6f else 1f),
-        showChevron = true,
-        trailing = {
-            NodeStatusDots(hidden = hidden, ranked = false, neutral = !hidden && candidate.unavailable)
-        }
-    )
-}
 
-@Composable
-private fun TileNodeRow(item: RootComponent, onOpen: () -> Unit) {
-    AppEntryRow(
-        title = item.label.takeIf { it.any(Char::isLetterOrDigit) }
-            ?: item.component.className.substringAfterLast('.'),
-        subtitle = ownerLine(item.owner, item.component.packageName),
-        icon = item.icon,
-        onOpen = onOpen,
-        showChevron = true,
-        trailing = {
-            if (item.enabled == false && item.blocked == null) {
-                NodeStatusDots(hidden = true, ranked = false)
-            }
-        }
-    )
-}
 
 /** Small "user N" pill marking rules that belong to a non-zero space. */
 @Composable
@@ -272,5 +203,3 @@ private fun NodeStatusDots(hidden: Boolean, ranked: Boolean, neutral: Boolean = 
 /** Resident global-mode pill with an inline dropdown for the three DisplayMode values. */
 
 /** "Owner label · package" for component rows; never repeats the package twice. */
-private fun ownerLine(owner: String, packageName: String): String =
-    if (owner.isBlank() || owner == packageName) packageName else owner + " · " + packageName
