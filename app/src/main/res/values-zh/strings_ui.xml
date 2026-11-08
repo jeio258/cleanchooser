@@ -78,4 +78,12 @@
     <string name="node_detail_summary">命中 %1$d 个面 · 当前空间：%2$s</string>
     <string name="node_hero_surface_badge">%1$d 个面</string>
     <string name="node_clone_section">分身规则（用户 %1$d）</string>
+    <string name="filter_action">筛选</string>
+    <string name="filter_section_channel">入口类型</string>
+    <string name="filter_search_hint">搜索类型</string>
+    <string name="filter_done">完成</string>
+    <string name="filter_remove">移除「%1$s」筛选</string>
+    <string name="filter_selected_mark">已选</string>
+    <string name="search_hint">搜索</string>
+    <string name="workbench_switch_face">切换入口面</string>
 </resources>
