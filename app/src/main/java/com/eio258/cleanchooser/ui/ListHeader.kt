@@ -178,12 +178,20 @@ internal fun <T> ListHeader(
                         .padding(horizontal = 16.dp)
                         .padding(bottom = 18.dp)
                 ) {
-                    Text(
-                        stringResource(R.string.filter_action),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(bottom = 6.dp)
-                    )
+                    Row(
+                        Modifier.fillMaxWidth().padding(bottom = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            stringResource(R.string.filter_action),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.weight(1f)
+                        )
+                        TextButton(onClick = { sheetOpen = false }) {
+                            Text(stringResource(R.string.filter_done))
+                        }
+                    }
 
                     if (channels.size > 1) {
                         SheetSectionLabel(stringResource(R.string.filter_section_channel))
@@ -251,14 +259,6 @@ internal fun <T> ListHeader(
                         }
                     }
 
-                    Row(
-                        Modifier.fillMaxWidth().padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        TextButton(onClick = { sheetOpen = false }) {
-                            Text(stringResource(R.string.filter_done))
-                        }
-                    }
                 }
             }
         }

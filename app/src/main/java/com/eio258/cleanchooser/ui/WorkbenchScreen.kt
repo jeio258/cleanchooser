@@ -81,6 +81,15 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
     var wantSearchFocus by remember { mutableStateOf(false) }
     val searchFocus = remember { FocusRequester() }
 
+    // Filter signal is a one-shot request. Resetting it on a face switch keeps the leftover
+    // value from opening the *next* face's filter sheet on its first composition.
+    val selectFace: (WorkbenchTab) -> Unit = { tab ->
+        filterSignal = 0
+        faceMenu = false
+        wantSearchFocus = false
+        vm.selectWorkbenchTab(tab)
+    }
+
     Column(Modifier.fillMaxSize().nestedScroll(collapse.connection)) {
         Row(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 6.dp, top = 4.dp, bottom = 2.dp),
@@ -121,10 +130,7 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
                     WorkbenchTab.entries.forEach { tab ->
                         DropdownMenuItem(
                             text = { Text(stringResource(tab.labelRes())) },
-                            onClick = {
-                                vm.selectWorkbenchTab(tab)
-                                faceMenu = false
-                            }
+                            onClick = { selectFace(tab) }
                         )
                     }
                 }
@@ -149,11 +155,10 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
                             tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                    // The sheet covers the whole screen, so the header stays collapsed while
+                    // it is open; closing it returns straight to the compact list.
                     IconButton(
-                        onClick = {
-                            collapse.expand()
-                            filterSignal += 1
-                        },
+                        onClick = { filterSignal += 1 },
                         modifier = Modifier.size(38.dp)
                     ) {
                         Icon(
@@ -200,7 +205,7 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
                 )
                 FaceChipsRow(
                     selectedTab = vm.workbenchTab,
-                    onSelect = { vm.selectWorkbenchTab(WorkbenchTab.entries[it]) },
+                    onSelect = { selectFace(WorkbenchTab.entries[it]) },
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
             }
