@@ -20,6 +20,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.stringResource
@@ -37,7 +39,8 @@ import com.eio258.cleanchooser.R
 internal fun CompactSearchField(
     query: String,
     onQueryChange: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    focusRequester: FocusRequester? = null
 ) {
     val colors = MaterialTheme.colorScheme
     val keyboard = LocalSoftwareKeyboardController.current
@@ -51,7 +54,11 @@ internal fun CompactSearchField(
         cursorBrush = SolidColor(colors.primary),
         modifier = modifier.fillMaxWidth()
             .heightIn(min = 44.dp)
-            .background(colors.surfaceContainerHigh, RoundedCornerShape(12.dp)),
+            .background(colors.surfaceContainerHigh, RoundedCornerShape(12.dp))
+            .then(
+                if (focusRequester != null) Modifier.focusRequester(focusRequester)
+                else Modifier
+            ),
         decorationBox = { innerTextField ->
             Row(
                 Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp),

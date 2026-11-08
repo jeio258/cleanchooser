@@ -32,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -41,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -52,6 +54,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.eio258.cleanchooser.R
+import kotlinx.coroutines.delay
 
 /**
  * Lets the shell ask the visible segment header to open its unified filter sheet, without
@@ -75,6 +78,8 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
     val collapse = remember { HeaderCollapse() }
     var filterSignal by remember { mutableIntStateOf(0) }
     var faceMenu by remember { mutableStateOf(false) }
+    var wantSearchFocus by remember { mutableStateOf(false) }
+    val searchFocus = remember { FocusRequester() }
 
     Column(Modifier.fillMaxSize().nestedScroll(collapse.connection)) {
         Row(
@@ -130,7 +135,13 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
             }
             AnimatedVisibility(visible = collapse.collapsed) {
                 Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                    IconButton(onClick = { collapse.expand() }, modifier = Modifier.size(38.dp)) {
+                    IconButton(
+                        onClick = {
+                            collapse.expand()
+                            wantSearchFocus = true
+                        },
+                        modifier = Modifier.size(38.dp)
+                    ) {
                         Icon(
                             Icons.Rounded.Search,
                             contentDescription = stringResource(R.string.search_hint),
@@ -184,13 +195,23 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
                 CompactSearchField(
                     query = state.query,
                     onQueryChange = vm::setQuery,
-                    modifier = Modifier.padding(horizontal = 16.dp)
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    focusRequester = searchFocus
                 )
                 FaceChipsRow(
                     selectedTab = vm.workbenchTab,
                     onSelect = { vm.selectWorkbenchTab(WorkbenchTab.entries[it]) },
                     modifier = Modifier.padding(vertical = 6.dp)
                 )
+            }
+        }
+
+        // Expanding from the collapsed bar focuses the field once the header is laid out.
+        LaunchedEffect(wantSearchFocus, collapse.collapsed) {
+            if (wantSearchFocus && !collapse.collapsed) {
+                delay(160)
+                runCatching { searchFocus.requestFocus() }
+                wantSearchFocus = false
             }
         }
 
