@@ -102,6 +102,17 @@ fun NodeDetailScreen(packageName: String, state: MainState, vm: MainViewModel) {
                         group.components.forEach { component ->
                             NodeTileRow(surface = group.surface, component = component, vm = vm)
                         }
+                        if (group.components.isNotEmpty()) {
+                            TextButton(
+                                onClick = { vm.restoreComponentsForApp(packageName) },
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    stringResource(R.string.detail_restore_components),
+                                    style = MaterialTheme.typography.labelMedium
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -228,18 +239,11 @@ private fun NodeHero(
     ) {
         AppIcon(bitmap = appIcon, appLabel = appLabel, size = 44.dp)
         Column(Modifier.weight(1f)) {
-            Text(
-                appLabel,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                ),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+            // The app name lives in the top bar (DetailTopBar); repeating it here made the page
+            // read as two stacked headers, so the hero keeps only the package and the badges.
             Text(
                 packageName,
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis

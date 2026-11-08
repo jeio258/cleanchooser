@@ -121,20 +121,41 @@ internal fun catalogVisible(item: ComponentCandidate, selected: Boolean, uiFilte
 data class AppTypeSection<T>(val type: AppType, val items: List<T>)
 
 /**
- * Splits rows into user applications first and system applications second, dropping empty
- * partitions. Ordering inside a partition is preserved, so callers keep their own sort logic.
+ * Partition order is a product decision, not an accident of enum declaration order: user
+ * applications always come first, system applications second. A class added to [AppType] later
+ * falls back to first-seen order after the known ones, so this never silently mis-orders.
  */
-internal fun <T> sectionsByAppType(
+internal val APP_SECTION_ORDER = listOf(AppType.USER, AppType.SYSTEM)
+
+/**
+ * Splits rows into per-class partitions in one pass, preserving input order inside each
+ * partition so callers keep their own sort logic. Empty input short-circuits, so render layers
+ * never need a separate emptiness check.
+ */
+internal inline fun <T> sectionsByAppType(
     items: List<T>,
     typeOf: (T) -> AppType,
-): List<AppTypeSection<T>> = AppType.entries.mapNotNull { type ->
-    items.filter { typeOf(it) == type }
-        .takeIf { it.isNotEmpty() }
-        ?.let { AppTypeSection(type, it) }
+): List<AppTypeSection<T>> {
+    if (items.isEmpty()) return emptyList()
+    val buckets = LinkedHashMap<AppType, MutableList<T>>(APP_SECTION_ORDER.size)
+    for (item in items) {
+        buckets.getOrPut(typeOf(item)) { ArrayList() }.add(item)
+    }
+    val ordered = ArrayList<AppTypeSection<T>>(buckets.size)
+    for (type in APP_SECTION_ORDER) {
+        val bucket = buckets.remove(type) ?: continue
+        ordered.add(AppTypeSection(type, bucket))
+    }
+    // Forward compatibility: classes outside APP_SECTION_ORDER keep their first-seen order.
+    for ((type, bucket) in buckets) {
+        ordered.add(AppTypeSection(type, bucket))
+    }
+    return ordered
 }
 
 /**
- * Headers are only informative when both classes are present. With a single class the caller's
- * own summary line (or the class switcher) already states the scope, so a header would repeat it.
+ * Whether to render partition headers at all. Only meaningful when more than one class is
+ * present: with a single class the class switcher (or the page's own summary line) already
+ * states the scope, so a header would just repeat it.
  */
-internal fun <T> List<AppTypeSection<T>>.needsTypeHeaders(): Boolean = size > 1
+internal fun List<AppTypeSection<*>>.needsTypeHeaders(): Boolean = size > 1

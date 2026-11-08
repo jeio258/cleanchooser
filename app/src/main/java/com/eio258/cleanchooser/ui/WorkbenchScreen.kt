@@ -227,19 +227,19 @@ fun WorkbenchScreen(state: MainState, vm: MainViewModel) {
                         state,
                         vm,
                         vm.workbenchFilters,
-                        onDetail = vm::openDetail
+                        onDetail = vm::openNodeDetail
                     )
                     WorkbenchTab.PRIORITY -> PriorityList(
                         state,
                         vm,
                         vm.workbenchFilters,
-                        onDetail = vm::openDetail
+                        onDetail = vm::openNodeDetail
                     )
                     WorkbenchTab.COMPONENTS -> ComponentsList(
                         state,
                         vm,
                         vm.workbenchFilters,
-                        onDetail = vm::openDetail
+                        onDetail = vm::openNodeDetail
                     )
                     WorkbenchTab.TEXT -> TextMenuScreen(state, vm)
                     WorkbenchTab.DIRECT_SHARE -> DirectShareScreen(state, vm)

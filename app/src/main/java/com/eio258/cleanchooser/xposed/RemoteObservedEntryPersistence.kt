@@ -22,6 +22,42 @@ internal class RemoteObservedEntryPersistence(
     private val preferences: SharedPreferences,
     private val record: (String) -> Unit,
 ) {
+    private companion object {
+        const val MAX_WRITE_FAILURES = 3
+    }
+
+    /**
+     * Write attempts before giving up. Some frameworks hand out a read-only RemotePreferences
+     * instance; in that case every observation would raise and log, so a few failures flip a
+     * latch and the store degrades to the in-process cache instead of retrying forever.
+     */
+    private var consecutiveWriteFailures = 0
+
+    @Volatile
+    private var writesDisabled = false
+
+    private fun persist(key: String, encoded: String): Boolean {
+        if (writesDisabled) return false
+        val written = runCatching { preferences.edit().putString(key, encoded).commit() }
+            .getOrElse { error ->
+                synchronized(this) {
+                    consecutiveWriteFailures += 1
+                    if (!writesDisabled && consecutiveWriteFailures >= MAX_WRITE_FAILURES) {
+                        writesDisabled = true
+                        record(
+                            "OBSERVED_CACHE_WRITE_DISABLED key=" + key +
+                                " error=" + error.javaClass.simpleName
+                        )
+                    }
+                }
+                false
+            }
+        if (written) {
+            synchronized(this) { consecutiveWriteFailures = 0 }
+        }
+        return written
+    }
+
     /**
      * Delta-style observations are isolated by kind so independent Xposed processes never race on
      * one aggregate JSON value. The read/merge/write cycle is now scoped to one logical surface.
@@ -52,9 +88,7 @@ internal class RemoteObservedEntryPersistence(
                 .filter { it.kind == kind.name && it.userId == userId }
         )
         check(encoded.length <= ObservedEntryCacheCodec.MAX_ENCODED_CHARS)
-        preferences.edit()
-            .putString(ObservedRemoteKeys.remoteKey(kind, userId), encoded)
-            .commit()
+        persist(ObservedRemoteKeys.remoteKey(kind, userId), encoded)
     }.onFailure {
         record("OBSERVED_CACHE_WRITE_FAILED kind=${kind.name} error=${it.javaClass.name}")
     }.getOrDefault(false)
@@ -69,7 +103,7 @@ internal class RemoteObservedEntryPersistence(
         val encoded = ObservedEntryCacheCodec.encode(transform(previous))
         if (encoded == previousEncoded) return@runCatching true
         check(encoded.length <= ObservedEntryCacheCodec.MAX_ENCODED_CHARS)
-        preferences.edit().putString(key, encoded).commit()
+        persist(key, encoded)
     }.onFailure {
         record("OBSERVED_CACHE_WRITE_FAILED key=$key error=${it.javaClass.name}")
     }.getOrDefault(false)

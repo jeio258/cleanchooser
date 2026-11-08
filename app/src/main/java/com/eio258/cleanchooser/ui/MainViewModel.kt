@@ -401,8 +401,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var workbenchFilters by mutableStateOf(WorkbenchFilters())
         private set
-    var detailTarget by mutableStateOf<String?>(null)
-        private set
     private var refreshJob: Job? = null
     private var refreshGeneration = 0L
 
@@ -1176,13 +1174,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setQuery(value: String) { query.value = value }
     fun setUiFilter(value: UiFilter) { uiFilter.value = value }
     fun setDestination(value: Destination) {
-        detailTarget = null
+        // Leaving through the bottom bar must never strand a detail page on top of the new tab.
+        nodeDetailTarget = null
         destination.value = value
     }
 
     fun selectWorkbenchTab(tab: WorkbenchTab) {
         workbenchTab = tab
-        detailTarget = null
+        nodeDetailTarget = null
         // Ordering always needs a concrete channel; keep the shared filter explicit so the
         // rules segment does not show "all" while the ordering segment shows "share".
         if (tab == WorkbenchTab.PRIORITY && workbenchFilters.channel == null) {
@@ -1217,8 +1216,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         refresh()
     }
 
-    fun openDetail(packageName: String) { detailTarget = packageName }
-    fun closeDetail() { detailTarget = null }
 
     // ---- App-node pages (AppsScreen / NodeDetailScreen) ----
 
@@ -1320,7 +1317,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun openWorkbench(tab: WorkbenchTab) {
         workbenchTab = tab
-        detailTarget = null
+        nodeDetailTarget = null
         destination.value = Destination.ENTRIES
     }
     /**

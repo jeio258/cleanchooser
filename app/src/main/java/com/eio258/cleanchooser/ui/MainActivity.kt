@@ -61,7 +61,6 @@ class MainActivity : ComponentActivity() {
         val collectingDiagnostics by vm.collectingDiagnostics.collectAsStateWithLifecycle()
         val exportMessage by vm.exportMessage.collectAsStateWithLifecycle()
         val resetMessage by vm.resetMessage.collectAsStateWithLifecycle()
-        val detailTarget = vm.detailTarget
         val logsOpen = vm.logsOpen
 
         LaunchedEffect(exportMessage) {
@@ -108,7 +107,6 @@ class MainActivity : ComponentActivity() {
         }
 
         BackHandler(enabled = logsOpen) { vm.closeLogs() }
-        BackHandler(enabled = detailTarget != null && !logsOpen) { vm.closeDetail() }
         BackHandler(enabled = vm.nodeDetailTarget != null) { vm.closeNodeDetail() }
         BackHandler(enabled = vm.nodeDetailTarget == null && state.destination != Destination.APPS) {
             vm.setDestination(Destination.APPS)
@@ -168,17 +166,18 @@ class MainActivity : ComponentActivity() {
             topBar = {
                 if (logsOpen) {
                     DetailTopBar(title = stringResource(R.string.logs_title), onBack = vm::closeLogs)
-                } else if (detailTarget != null) {
+                } else if (vm.nodeDetailTarget != null) {
+                    val pkg = vm.nodeDetailTarget ?: ""
                     DetailTopBar(
-                        title = state.candidates.firstOrNull { it.rule.packageName == detailTarget }
-                            ?.appLabel ?: detailTarget,
-                        onBack = vm::closeDetail
+                        title = state.candidates.firstOrNull { it.rule.packageName == pkg }
+                            ?.appLabel ?: pkg,
+                        onBack = vm::closeNodeDetail
                     )
                 }
                 // Each main view renders its own header; the Scaffold no longer provides a global top bar.
             },
             bottomBar = {
-                if (detailTarget == null && !logsOpen) {
+                if (vm.nodeDetailTarget == null && !logsOpen) {
                     NavigationBar {
                         Destination.entries.forEach { dest ->
                             NavigationBarItem(
@@ -202,7 +201,6 @@ class MainActivity : ComponentActivity() {
             Box(Modifier.padding(padding).fillMaxSize()) {
                 when {
                     logsOpen -> LogScreen(vm)
-                    detailTarget != null -> AppDetailScreen(detailTarget, state, vm)
                     vm.nodeDetailTarget != null -> NodeDetailScreen(vm.nodeDetailTarget!!, state, vm)
                     state.destination == Destination.APPS -> AppsScreen(state, vm)
                     state.destination == Destination.ENTRIES -> WorkbenchScreen(state, vm)
