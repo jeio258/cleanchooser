@@ -67,7 +67,10 @@ class IntentCatalog(private val context: Context) {
                 },
                 appType = appInfo?.listCleanerAppType() ?: AppType.USER,
                 evidence = listOf(context.getString(R.string.catalog_configured_waiting)),
-                unavailable = true
+                unavailable = true,
+                // Second synthesis path: without this the row keeps installed=true and lands in the
+                // normal user/system sections even though the package cannot be resolved at all.
+                installed = appInfo != null
             )
         }
     }
