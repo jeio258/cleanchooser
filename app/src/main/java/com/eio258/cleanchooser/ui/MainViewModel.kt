@@ -154,6 +154,8 @@ data class NodeSummary(
     val surfaces: List<NodeSurface>,
     val hiddenCount: Int,
     val appType: com.eio258.cleanchooser.domain.AppType,
+    /** True when every entry is configured but absent from the current scan. */
+    val isMissing: Boolean,
     /** Kinds whose priority list contains this package; drives the blue "ranked" status dot. */
     val rankKinds: Set<IntentKind>,
     val entries: List<ComponentCandidate>,
@@ -1245,6 +1247,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 surfaces = surfaces,
                 hiddenCount = items.count { it.rule in state.selected },
                 appType = first.appType,
+                isMissing = items.all { it.unavailable },
                 rankKinds = items.map { it.rule.kind }
                     .filter { kind -> state.priorities.apps[kind].orEmpty().contains(pkg) }
                     .toSet(),

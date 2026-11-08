@@ -85,4 +85,7 @@
     <string name="filter_selected_mark">Selected</string>
     <string name="search_hint">Search</string>
     <string name="workbench_switch_face">Switch face</string>
+    <string name="app_section_missing">Not found on this device</string>
+    <string name="app_row_missing_hint">Not found on this device; the rule is kept</string>
+    <string name="app_section_missing_count">Not found on this device · %1$d</string>
 </resources>

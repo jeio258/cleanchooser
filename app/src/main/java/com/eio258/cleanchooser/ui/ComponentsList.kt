@@ -184,7 +184,9 @@ fun ComponentsList(
             onInvert = { runBatch(visible) { vm.invertComponentsBulk(kind, it) } }
         )
 
-        val typeSections = remember(groups) { sectionsByAppType(groups) { it.value.first().appType } }
+        val typeSections = remember(groups) {
+            sectionsByAppType(groups, { it.value.first().appType })
+        }
         val showTypeHeaders = typeSections.needsTypeHeaders()
 
         LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -213,9 +215,9 @@ fun ComponentsList(
 
             typeSections.forEach { section ->
                 if (showTypeHeaders) {
-                    item(key = "apptype|" + section.type.name, contentType = "section") {
+                    item(key = "apptype|" + (section.type?.name ?: "missing"), contentType = "section") {
                         SectionLabel(
-                            stringResource(section.type.titleRes()),
+                            appSectionTitle(section.type),
                             section.items.size.toString(),
                             compact = true
                         )

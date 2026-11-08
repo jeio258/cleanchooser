@@ -69,7 +69,9 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
                 summary.entries.any { it.matchesQuery(query) }
         }
     }
-    val appSections = remember(appNodes) { sectionsByAppType(appNodes) { it.appType } }
+    val appSections = remember(appNodes) {
+        sectionsByAppType(appNodes, { it.appType }, { it.isMissing })
+    }
     val entryNodes = remember(state.candidates, query) {
         state.candidates
             .filter { NodeSurface.SYSTEM_ENTRY.contains(it.rule.kind) && it.matchesQuery(query) }
@@ -130,12 +132,15 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
             }
             val showTypeHeaders = appSections.needsTypeHeaders()
             appSections.forEach { section ->
-                item(key = "header-apps-" + section.type.name) {
+                item(key = "header-apps-" + (section.type?.name ?: "missing")) {
                     SectionLabel(
-                        title = if (showTypeHeaders) {
-                            stringResource(section.type.titleRes())
-                        } else {
-                            stringResource(R.string.app_list_count, section.items.size)
+                        title = when {
+                            showTypeHeaders -> appSectionTitle(section.type)
+                            // A lone leftover bucket must still say so; a plain count would hide
+                            // that none of these packages exist on the device any more.
+                            section.type == null ->
+                                stringResource(R.string.app_section_missing_count, section.items.size)
+                            else -> stringResource(R.string.app_list_count, section.items.size)
                         },
                         hint = if (showTypeHeaders) section.items.size.toString() else null,
                         compact = true
@@ -174,9 +179,11 @@ fun AppsScreen(state: MainState, vm: MainViewModel) {
 private fun NodeAppRow(summary: NodeSummary, activeSpaceId: Int, onOpen: () -> Unit) {
     AppEntryRow(
         title = summary.appLabel,
-        subtitle = "",
+        // Only leftover rows carry a subtitle; it explains why the row shows a package name.
+        subtitle = if (summary.isMissing) stringResource(R.string.app_row_missing_hint) else "",
         icon = summary.appIcon,
         onOpen = onOpen,
+        iconMissing = summary.isMissing,
         trailing = {
             if (activeSpaceId != 0) NodeUserBadge(activeSpaceId)
             NodeStatusDots(

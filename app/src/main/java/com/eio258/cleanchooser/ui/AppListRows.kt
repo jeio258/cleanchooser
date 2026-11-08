@@ -45,12 +45,16 @@ internal fun AppRow(
         .joinToString(" · ")
     AppEntryRow(
         title = group.appLabel,
-        subtitle = stringResource(
-            R.string.app_row_selection_summary,
-            selectedCount,
-            group.components.size,
-            kindsSummary
-        ),
+        subtitle = if (group.missing) {
+            stringResource(R.string.app_row_missing_hint)
+        } else {
+            stringResource(
+                R.string.app_row_selection_summary,
+                selectedCount,
+                group.components.size,
+                kindsSummary
+            )
+        },
         icon = group.appIcon,
         checkState = selectionState,
         onCheck = { onSelect(selectionState != ToggleableState.On) },
@@ -58,7 +62,8 @@ internal fun AppRow(
         lockState = lockState,
         onLock = onLock,
         onUnlock = onUnlock,
-        onOpen = onOpen
+        onOpen = onOpen,
+        iconMissing = group.missing
     )
 }
 

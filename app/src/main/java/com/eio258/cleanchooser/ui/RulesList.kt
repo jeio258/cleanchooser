@@ -189,7 +189,9 @@ fun RulesList(
     val helpText = stringResource(R.string.rules_page_intro) + "\n\n" + usageHelp + "\n\n" +
         stringResource(displayModeHelpRes(state.displayMode))
 
-    val typeSections = remember(shownGroups) { sectionsByAppType(shownGroups) { it.appType } }
+    val typeSections = remember(shownGroups) {
+        sectionsByAppType(shownGroups, { it.appType }, { it.missing })
+    }
     val showTypeHeaders = typeSections.needsTypeHeaders()
 
     Column(Modifier.fillMaxSize()) {
@@ -311,9 +313,9 @@ fun RulesList(
             }
         typeSections.forEach { section ->
             if (showTypeHeaders) {
-                item(key = "apptype|" + section.type.name, contentType = "section") {
+                item(key = "apptype|" + (section.type?.name ?: "missing"), contentType = "section") {
                     SectionLabel(
-                        stringResource(section.type.titleRes()),
+                        appSectionTitle(section.type),
                         section.items.size.toString(),
                         compact = true
                     )

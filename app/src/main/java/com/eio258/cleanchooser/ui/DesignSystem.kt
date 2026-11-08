@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.ArrowDropDown
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.ExpandMore
+import androidx.compose.material.icons.rounded.HelpOutline
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -45,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.eio258.cleanchooser.R
+import com.eio258.cleanchooser.domain.AppType
 import com.eio258.cleanchooser.domain.AppTypeFilter
 import com.eio258.cleanchooser.domain.DisplayMode
 
@@ -132,6 +134,7 @@ internal fun AppEntryRow(
     onUnlock: (() -> Unit)? = null,
     trailing: (@Composable RowScope.() -> Unit)? = null,
     showChevron: Boolean = true,
+    iconMissing: Boolean = false,
 ) {
     val swipeable = if (onLock != null && onUnlock != null) {
         Modifier.bulkLockSwipe(onLock = onLock, onUnlock = onUnlock)
@@ -163,7 +166,16 @@ internal fun AppEntryRow(
                 onClick = onCheck ?: {}
             )
         }
-        AppIcon(bitmap = icon, appLabel = title, size = 40.dp)
+        if (iconMissing) {
+            Icon(
+                Icons.Rounded.HelpOutline,
+                contentDescription = null,
+                modifier = Modifier.size(40.dp),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+            )
+        } else {
+            AppIcon(bitmap = icon, appLabel = title, size = 40.dp)
+        }
         Column(Modifier.weight(1f)) {
             Text(
                 title,
@@ -469,3 +481,11 @@ internal fun AppTypeTrigger(
         }
     }
 }
+
+/**
+ * Title for one application-class bucket. A null class is the trailing "no longer installed"
+ * bucket produced by [sectionsByAppType], not a real application class.
+ */
+@Composable
+internal fun appSectionTitle(type: AppType?): String =
+    if (type == null) stringResource(R.string.app_section_missing) else stringResource(type.titleRes())

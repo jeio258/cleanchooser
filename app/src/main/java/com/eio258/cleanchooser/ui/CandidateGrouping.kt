@@ -14,7 +14,9 @@ data class AppGroup(
     val appLabel: String,
     val appIcon: Bitmap?,
     val appType: AppType,
-    val components: List<ComponentCandidate>
+    val components: List<ComponentCandidate>,
+    /** Every entry of this package is configured but absent from the current scan. */
+    val missing: Boolean = false,
 )
 
 private fun appSelectionRank(group: AppGroup, selected: Set<ComponentRule>): Int {
@@ -34,7 +36,8 @@ internal fun baseAppGroups(candidates: List<ComponentCandidate>): List<AppGroup>
             first.appLabel,
             first.appIcon,
             first.appType,
-            all.sortedBy { it.rule.kind.ordinal }
+            all.sortedBy { it.rule.kind.ordinal },
+            missing = all.all { it.unavailable }
         )
     }
 
@@ -118,7 +121,11 @@ internal fun catalogVisible(item: ComponentCandidate, selected: Boolean, uiFilte
  * surface that lists applications (rules, components, app nodes); callers only supply the row
  * type and how to read its class.
  */
-data class AppTypeSection<T>(val type: AppType, val items: List<T>)
+data class AppTypeSection<T>(
+    /** Null marks the trailing "no longer installed" bucket, which has no application class. */
+    val type: AppType?,
+    val items: List<T>,
+)
 
 /**
  * Partition order is a product decision, not an accident of enum declaration order: user
@@ -135,13 +142,16 @@ internal val APP_SECTION_ORDER = listOf(AppType.USER, AppType.SYSTEM)
 internal inline fun <T> sectionsByAppType(
     items: List<T>,
     typeOf: (T) -> AppType,
+    isMissing: (T) -> Boolean = { false },
 ): List<AppTypeSection<T>> {
     if (items.isEmpty()) return emptyList()
+    val missing = ArrayList<T>()
     val buckets = LinkedHashMap<AppType, MutableList<T>>(APP_SECTION_ORDER.size)
     for (item in items) {
-        buckets.getOrPut(typeOf(item)) { ArrayList() }.add(item)
+        if (isMissing(item)) missing.add(item)
+        else buckets.getOrPut(typeOf(item)) { ArrayList() }.add(item)
     }
-    val ordered = ArrayList<AppTypeSection<T>>(buckets.size)
+    val ordered = ArrayList<AppTypeSection<T>>(buckets.size + 1)
     for (type in APP_SECTION_ORDER) {
         val bucket = buckets.remove(type) ?: continue
         ordered.add(AppTypeSection(type, bucket))
@@ -150,6 +160,8 @@ internal inline fun <T> sectionsByAppType(
     for ((type, bucket) in buckets) {
         ordered.add(AppTypeSection(type, bucket))
     }
+    // Configured-but-absent packages always trail the list: they are leftovers, not a class.
+    if (missing.isNotEmpty()) ordered.add(AppTypeSection(null, missing))
     return ordered
 }
 
